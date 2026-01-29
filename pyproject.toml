@@ -1,0 +1,27 @@
+[project]
+name = "narrate"
+version = "0.1.0"
+description = "Text to Speech Audiobook Generator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "httpx>=0.26.0,<1.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+local = [
+    "mlx-audio",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0,<1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+

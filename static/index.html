@@ -47,10 +47,17 @@
         .status-bar {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 1rem;
             justify-content: center;
             margin-top: 1rem;
             font-size: 0.85rem;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
         }
 
         .status-dot {
@@ -60,13 +67,9 @@
             background: #555;
         }
 
-        .status-dot.connected {
-            background: #22c55e;
-        }
-
-        .status-dot.disconnected {
-            background: #ef4444;
-        }
+        .status-dot.connected { background: #22c55e; }
+        .status-dot.configured { background: #eab308; }
+        .status-dot.disconnected { background: #ef4444; }
 
         .card {
             background: #151515;
@@ -109,17 +112,24 @@
             color: #555;
         }
 
-        .controls {
-            display: flex;
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 1rem;
-            align-items: end;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .select-wrapper {
-            flex: 1;
+            width: 100%;
         }
 
-        select {
+        select, input[type="password"] {
             width: 100%;
             padding: 0.75rem 1rem;
             background: #0a0a0a;
@@ -130,9 +140,33 @@
             cursor: pointer;
         }
 
-        select:focus {
+        input[type="password"] {
+            cursor: text;
+        }
+
+        select:focus, input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .api-key-section {
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .api-key-section.visible {
+            display: block;
+        }
+
+        .api-key-note {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.4rem;
+        }
+
+        .generate-row {
+            display: flex;
+            justify-content: flex-end;
         }
 
         button {
@@ -224,6 +258,12 @@
         .download-btn:hover:not(:disabled) {
             background: #333;
         }
+
+        .provider-desc {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.4rem;
+        }
     </style>
 </head>
 <body>
@@ -231,9 +271,19 @@
         <header>
             <h1>Narrate</h1>
             <p class="subtitle">Transform text into natural speech</p>
-            <div class="status-bar">
-                <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">Checking connection...</span>
+            <div class="status-bar" id="statusBar">
+                <span class="status-item">
+                    <span class="status-dot" id="mlxDot"></span>
+                    <span>MLX-Audio</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="elevenDot"></span>
+                    <span>ElevenLabs</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="openaiDot"></span>
+                    <span>OpenAI</span>
+                </span>
             </div>
         </header>
 
@@ -247,14 +297,37 @@
         </div>
 
         <div class="card">
-            <div class="controls">
+            <div class="controls-grid">
                 <div class="select-wrapper">
-                    <label for="modelSelect">Voice Model</label>
-                    <select id="modelSelect">
-                        <option value="openaudio-s1-mini">OpenAudio S1 Mini (Fast)</option>
-                        <option value="openaudio-s1">OpenAudio S1 (Best Quality)</option>
+                    <label for="providerSelect">Provider</label>
+                    <select id="providerSelect" onchange="onProviderChange()">
+                        <option value="mlx-audio">MLX-Audio (Local)</option>
+                        <option value="elevenlabs">ElevenLabs</option>
+                        <option value="openai">OpenAI</option>
                     </select>
+                    <p class="provider-desc" id="providerDesc">Local TTS on Apple Silicon</p>
                 </div>
+                <div class="select-wrapper">
+                    <label for="modelSelect">Model</label>
+                    <select id="modelSelect"></select>
+                </div>
+            </div>
+
+            <div class="controls-grid" id="voiceRow" style="display: none;">
+                <div class="select-wrapper">
+                    <label for="voiceSelect">Voice</label>
+                    <select id="voiceSelect"></select>
+                </div>
+                <div></div>
+            </div>
+
+            <div class="api-key-section" id="apiKeySection">
+                <label for="apiKeyInput">API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="Enter your API key">
+                <p class="api-key-note">Stored in browser only. Not sent to our servers.</p>
+            </div>
+
+            <div class="generate-row">
                 <button id="generateBtn" onclick="generateSpeech()">Generate Audio</button>
             </div>
         </div>
@@ -273,7 +346,7 @@
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    Download WAV
+                    Download
                 </button>
             </div>
             <div class="error" id="errorMessage" style="display: none;"></div>
@@ -282,26 +355,98 @@
 
     <script>
         let audioBlob = null;
+        let providers = {};
 
-        // Check API health on load
+        // Load providers on startup
+        async function loadProviders() {
+            try {
+                const response = await fetch('/api/providers');
+                const data = await response.json();
+                providers = data.providers;
+                onProviderChange();
+            } catch (e) {
+                console.error('Failed to load providers:', e);
+            }
+        }
+
+        // Check API health
         async function checkHealth() {
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
-
             try {
                 const response = await fetch('/api/health');
                 const data = await response.json();
+                const statuses = data.providers;
 
-                if (data.fish_speech === 'connected') {
-                    dot.className = 'status-dot connected';
-                    text.textContent = 'Fish Speech connected';
-                } else {
-                    dot.className = 'status-dot disconnected';
-                    text.textContent = 'Fish Speech disconnected';
-                }
+                // MLX-Audio
+                const mlxDot = document.getElementById('mlxDot');
+                mlxDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
+
+                // ElevenLabs
+                const elevenDot = document.getElementById('elevenDot');
+                elevenDot.className = 'status-dot ' + (statuses.elevenlabs === 'configured' ? 'configured' : 'disconnected');
+
+                // OpenAI
+                const openaiDot = document.getElementById('openaiDot');
+                openaiDot.className = 'status-dot ' + (statuses.openai === 'configured' ? 'configured' : 'disconnected');
+
             } catch (e) {
-                dot.className = 'status-dot disconnected';
-                text.textContent = 'API error';
+                console.error('Health check failed:', e);
+            }
+        }
+
+        // Handle provider change
+        function onProviderChange() {
+            const providerSelect = document.getElementById('providerSelect');
+            const modelSelect = document.getElementById('modelSelect');
+            const voiceSelect = document.getElementById('voiceSelect');
+            const voiceRow = document.getElementById('voiceRow');
+            const apiKeySection = document.getElementById('apiKeySection');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const providerDesc = document.getElementById('providerDesc');
+
+            const providerId = providerSelect.value;
+            const provider = providers[providerId];
+
+            if (!provider) return;
+
+            // Update description
+            providerDesc.textContent = provider.description;
+
+            // Update models
+            modelSelect.innerHTML = '';
+            for (const [id, name] of Object.entries(provider.models)) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = name;
+                modelSelect.appendChild(option);
+            }
+
+            // Update voices (only show if provider has voices)
+            if (provider.voices && Object.keys(provider.voices).length > 0) {
+                voiceRow.style.display = 'grid';
+                voiceSelect.innerHTML = '';
+                for (const [id, name] of Object.entries(provider.voices)) {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = name;
+                    voiceSelect.appendChild(option);
+                }
+            } else {
+                voiceRow.style.display = 'none';
+                voiceSelect.innerHTML = '';
+            }
+
+            // Show/hide API key input
+            if (provider.requires_api_key) {
+                apiKeySection.classList.add('visible');
+                // Load saved API key
+                const savedKey = localStorage.getItem(`narrate_${providerId}_key`);
+                if (savedKey) {
+                    apiKeyInput.value = savedKey;
+                } else {
+                    apiKeyInput.value = '';
+                }
+            } else {
+                apiKeySection.classList.remove('visible');
             }
         }
 
@@ -312,7 +457,10 @@
 
         async function generateSpeech() {
             const text = document.getElementById('textInput').value.trim();
+            const provider = document.getElementById('providerSelect').value;
             const model = document.getElementById('modelSelect').value;
+            const voice = document.getElementById('voiceSelect').value;
+            const apiKey = document.getElementById('apiKeyInput').value;
             const btn = document.getElementById('generateBtn');
             const audioSection = document.getElementById('audioSection');
             const loading = document.getElementById('loadingIndicator');
@@ -325,6 +473,11 @@
                 return;
             }
 
+            // Save API key if provided
+            if (apiKey && providers[provider]?.requires_api_key) {
+                localStorage.setItem(`narrate_${provider}_key`, apiKey);
+            }
+
             // Show audio section, reset state
             audioSection.classList.add('visible');
             loading.style.display = 'flex';
@@ -334,12 +487,20 @@
             btn.textContent = 'Generating...';
 
             try {
+                const body = { text, provider, model };
+                // Only send voice if provider has voices
+                const providerData = providers[provider];
+                if (voice && providerData?.voices && Object.keys(providerData.voices).length > 0) {
+                    body.voice = voice;
+                }
+                if (apiKey) body.api_key = apiKey;
+
                 const response = await fetch('/api/tts', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text, model }),
+                    body: JSON.stringify(body),
                 });
 
                 if (!response.ok) {
@@ -367,19 +528,22 @@
         function downloadAudio() {
             if (!audioBlob) return;
 
+            const provider = document.getElementById('providerSelect').value;
+            const ext = provider === 'openai' ? 'wav' : 'mp3';
+
             const url = URL.createObjectURL(audioBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `narrate_${Date.now()}.wav`;
+            a.download = `narrate_${Date.now()}.${ext}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
 
-        // Initial health check
+        // Initialize
+        loadProviders();
         checkHealth();
-        // Periodic health check
         setInterval(checkHealth, 30000);
     </script>
 </body>

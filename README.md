@@ -2,86 +2,78 @@
 
 Transform text into natural speech. Paste in articles, blogs, papers, or any text and get a high-quality audio version.
 
+## Features
+
+- **Local TTS**: Spark-TTS runs on Apple Silicon (no API key needed)
+- **Cloud TTS**: ElevenLabs, OpenAI for highest quality
+- **No Backend Storage**: API keys stored in browser only
+
 ## Quick Start
 
-### 1. Set up Fish Speech (TTS Backend)
-
-Narrate uses [Fish Speech](https://github.com/fishaudio/fish-speech) for text-to-speech. You'll need to run it locally first.
-
-**Option A: Docker (Recommended)**
-
 ```bash
-# Clone Fish Speech
-git clone https://github.com/fishaudio/fish-speech.git
-cd fish-speech
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Start the API server
-docker compose --profile server up
+# Install dependencies and run
+uv run python app.py
 ```
 
-The API will be available at `http://localhost:8080`.
+Open http://localhost:3000 in your browser.
 
-**Option B: Manual Install**
+## TTS Providers
 
-```bash
-# Prerequisites (Linux/WSL)
-sudo apt install portaudio19-dev libsox-dev ffmpeg
+### MLX-Audio (Local - Mac Only)
 
-# Clone and install
-git clone https://github.com/fishaudio/fish-speech.git
-cd fish-speech
+Free, runs locally on Apple Silicon. No API key needed.
 
-# Create environment (using conda)
-conda create -n fish-speech python=3.12
-conda activate fish-speech
-pip install -e .[cu129]  # For NVIDIA GPU
-
-# Or using uv (faster)
-uv sync --python 3.12 --extra cu129
-
-# Start API server
-python -m tools.api_server \
-    --listen 0.0.0.0:8080 \
-    --llama-checkpoint-path "checkpoints/openaudio-s1-mini" \
-    --decoder-checkpoint-path "checkpoints/openaudio-s1-mini/codec.pth" \
-    --decoder-config-name modded_dac_vq
-```
-
-> Note: Fish Speech requires ~12GB GPU memory for inference.
-
-### 2. Run Narrate
+**Models:**
+- **Spark-TTS 0.5B** - Best quality, supports English and Chinese
+- **Spark-TTS 0.5B 8-bit** - Faster, uses less memory
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install MLX-Audio server (one command)
+uv tool install mlx-audio --prerelease=allow --force --with uvicorn --with fastapi --with python-multipart --with webrtcvad --with "setuptools<81"
 
-# Run the app
-python app.py
+# Start the TTS server (in a separate terminal)
+mlx_audio.server --host 0.0.0.0 --port 8000
 ```
 
-Open `http://localhost:3000` in your browser.
+First run downloads the model (~500MB). Then select "MLX-Audio (Local)" in the UI.
 
-## Usage
+### ElevenLabs
 
-1. Paste your text into the text area
-2. Select a voice model
-3. Click "Generate Audio"
-4. Listen or download the generated audio
+Cloud TTS with natural voices. Get API key at [elevenlabs.io](https://elevenlabs.io).
+
+**Models:** Flash v2.5 (fast), Multilingual v2 (best quality), Turbo v2.5 (balanced)
+
+### OpenAI
+
+Cloud TTS with GPT-4o voices. Get API key at [platform.openai.com](https://platform.openai.com).
+
+**Models:** GPT-4o Mini TTS (best), TTS-1 (fast), TTS-1 HD (high quality)
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FISH_SPEECH_URL` | `http://127.0.0.1:8080` | Fish Speech API URL |
+| `MLX_AUDIO_URL` | `http://127.0.0.1:8000` | MLX-Audio server URL |
+| `ELEVENLABS_API_KEY` | - | ElevenLabs API key (optional) |
+| `OPENAI_API_KEY` | - | OpenAI API key (optional) |
 
-## Roadmap
+API keys can also be entered in the UI and are stored in browser localStorage.
 
-- [ ] Voice cloning from reference audio
-- [ ] Video support (extract audio tracks)
-- [ ] Local model options
-- [ ] Book/EPUB import
-- [ ] Batch processing for long texts
-- [ ] Multiple output formats (MP3, OGG)
+## Development
+
+```bash
+# Run unit tests
+uv run --extra dev pytest tests/test_api.py -v
+
+# Run integration tests (requires MLX-Audio server running)
+uv run --extra dev pytest tests/test_integration.py -v -s
+
+# Run all tests
+uv run --extra dev pytest -v
+```
 
 ## License
 
