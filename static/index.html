@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrate - Text to Speech</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #555;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+        }
+
+        .card {
+            background: #151515;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #999;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea::placeholder {
+            color: #555;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .select-wrapper {
+            flex: 1;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        button:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .audio-section {
+            display: none;
+        }
+
+        .audio-section.visible {
+            display: block;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 2rem;
+            color: #888;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #2d1515;
+            border-color: #5c2626;
+            color: #f87171;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #555;
+            margin-top: 0.5rem;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: #262626;
+            font-size: 0.9rem;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Narrate</h1>
+            <p class="subtitle">Transform text into natural speech</p>
+            <div class="status-bar">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Checking connection...</span>
+            </div>
+        </header>
+
+        <div class="card">
+            <label for="textInput">Your Text</label>
+            <textarea
+                id="textInput"
+                placeholder="Paste your article, blog post, paper, or any text here..."
+            ></textarea>
+            <div class="char-count"><span id="charCount">0</span> characters</div>
+        </div>
+
+        <div class="card">
+            <div class="controls">
+                <div class="select-wrapper">
+                    <label for="modelSelect">Voice Model</label>
+                    <select id="modelSelect">
+                        <option value="openaudio-s1-mini">OpenAudio S1 Mini (Fast)</option>
+                        <option value="openaudio-s1">OpenAudio S1 (Best Quality)</option>
+                    </select>
+                </div>
+                <button id="generateBtn" onclick="generateSpeech()">Generate Audio</button>
+            </div>
+        </div>
+
+        <div class="card audio-section" id="audioSection">
+            <label>Generated Audio</label>
+            <div class="loading" id="loadingIndicator" style="display: none;">
+                <div class="spinner"></div>
+                <span>Generating speech...</span>
+            </div>
+            <div id="audioResult" style="display: none;">
+                <audio id="audioPlayer" controls></audio>
+                <button class="download-btn" id="downloadBtn" onclick="downloadAudio()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download WAV
+                </button>
+            </div>
+            <div class="error" id="errorMessage" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let audioBlob = null;
+
+        // Check API health on load
+        async function checkHealth() {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+
+                if (data.fish_speech === 'connected') {
+                    dot.className = 'status-dot connected';
+                    text.textContent = 'Fish Speech connected';
+                } else {
+                    dot.className = 'status-dot disconnected';
+                    text.textContent = 'Fish Speech disconnected';
+                }
+            } catch (e) {
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'API error';
+            }
+        }
+
+        // Update character count
+        document.getElementById('textInput').addEventListener('input', (e) => {
+            document.getElementById('charCount').textContent = e.target.value.length;
+        });
+
+        async function generateSpeech() {
+            const text = document.getElementById('textInput').value.trim();
+            const model = document.getElementById('modelSelect').value;
+            const btn = document.getElementById('generateBtn');
+            const audioSection = document.getElementById('audioSection');
+            const loading = document.getElementById('loadingIndicator');
+            const result = document.getElementById('audioResult');
+            const error = document.getElementById('errorMessage');
+            const player = document.getElementById('audioPlayer');
+
+            if (!text) {
+                alert('Please enter some text');
+                return;
+            }
+
+            // Show audio section, reset state
+            audioSection.classList.add('visible');
+            loading.style.display = 'flex';
+            result.style.display = 'none';
+            error.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            try {
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text, model }),
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Generation failed');
+                }
+
+                audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                player.src = audioUrl;
+
+                loading.style.display = 'none';
+                result.style.display = 'block';
+
+            } catch (e) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate Audio';
+            }
+        }
+
+        function downloadAudio() {
+            if (!audioBlob) return;
+
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `narrate_${Date.now()}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Initial health check
+        checkHealth();
+        // Periodic health check
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>
