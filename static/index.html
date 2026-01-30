@@ -264,6 +264,240 @@
             color: #666;
             margin-top: 0.4rem;
         }
+
+        /* Voice Cloning Styles */
+        .voice-clone-section {
+            display: none;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #262626;
+        }
+
+        .voice-clone-section.visible {
+            display: block;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e5e5e5;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .upload-form {
+            background: #0a0a0a;
+            border: 1px dashed #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-form.drag-over {
+            border-color: #667eea;
+            background: #0f0f1a;
+        }
+
+        .upload-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .upload-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #888;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .file-input-label:hover {
+            border-color: #667eea;
+            color: #e5e5e5;
+        }
+
+        .file-input-label.has-file {
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .transcript-input {
+            width: 100%;
+            min-height: 60px;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+
+        .transcript-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-btn {
+            padding: 0.6rem 1.25rem;
+            font-size: 0.9rem;
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.5;
+        }
+
+        .voice-list {
+            margin-top: 1rem;
+        }
+
+        .voice-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #262626;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .voice-item:hover {
+            border-color: #444;
+        }
+
+        .voice-item.selected {
+            border-color: #667eea;
+            background: #0f0f1a;
+        }
+
+        .voice-radio {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .voice-item.selected .voice-radio {
+            border-color: #667eea;
+        }
+
+        .voice-item.selected .voice-radio::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+        }
+
+        .voice-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .voice-name {
+            font-weight: 500;
+            color: #e5e5e5;
+            margin-bottom: 0.2rem;
+        }
+
+        .voice-transcript {
+            font-size: 0.8rem;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .voice-delete {
+            padding: 0.4rem;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .voice-delete:hover {
+            color: #ef4444;
+            background: #2d1515;
+        }
+
+        .empty-voices {
+            text-align: center;
+            padding: 2rem;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .upload-progress {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            color: #888;
+        }
+
+        .upload-progress.visible {
+            display: flex;
+        }
     </style>
 </head>
 <body>
@@ -275,6 +509,10 @@
                 <span class="status-item">
                     <span class="status-dot" id="mlxDot"></span>
                     <span>MLX-Audio</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="voiceCloneDot"></span>
+                    <span>Voice Clone</span>
                 </span>
                 <span class="status-item">
                     <span class="status-dot" id="elevenDot"></span>
@@ -302,6 +540,7 @@
                     <label for="providerSelect">Provider</label>
                     <select id="providerSelect" onchange="onProviderChange()">
                         <option value="mlx-audio">MLX-Audio (Local)</option>
+                        <option value="mlx-voice-clone">MLX Voice Clone (Local)</option>
                         <option value="elevenlabs">ElevenLabs</option>
                         <option value="openai">OpenAI</option>
                     </select>
@@ -325,6 +564,47 @@
                 <label for="apiKeyInput">API Key</label>
                 <input type="password" id="apiKeyInput" placeholder="Enter your API key">
                 <p class="api-key-note">Stored in browser only. Not sent to our servers.</p>
+            </div>
+
+            <!-- Voice Cloning Section -->
+            <div class="voice-clone-section" id="voiceCloneSection">
+                <div class="section-header">
+                    <span class="section-title">Voice Samples</span>
+                </div>
+
+                <!-- Upload Form -->
+                <div class="upload-form" id="uploadForm">
+                    <div class="upload-row">
+                        <div class="file-input-wrapper">
+                            <div class="file-input-label" id="fileInputLabel">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span id="fileInputText">Choose audio file</span>
+                            </div>
+                            <input type="file" id="voiceFileInput" accept="audio/*" onchange="onFileSelected()">
+                        </div>
+                        <div>
+                            <input type="text" id="voiceNameInput" placeholder="Voice name (e.g., My Voice)">
+                        </div>
+                    </div>
+                    <label for="voiceTranscriptInput" style="margin-bottom: 0.5rem;">Transcript (optional - auto-detected if empty)</label>
+                    <textarea class="transcript-input" id="voiceTranscriptInput" placeholder="Leave empty to auto-transcribe, or type what is said in the audio..."></textarea>
+                    <button class="upload-btn" id="uploadVoiceBtn" onclick="uploadVoice()" disabled>Upload Voice</button>
+                </div>
+
+                <!-- Upload Progress -->
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="spinner"></div>
+                    <span>Uploading voice sample...</span>
+                </div>
+
+                <!-- Voice List -->
+                <div class="voice-list" id="voiceList">
+                    <div class="empty-voices" id="emptyVoices">No voice samples yet. Upload one above.</div>
+                </div>
             </div>
 
             <div class="generate-row">
@@ -356,6 +636,8 @@
     <script>
         let audioBlob = null;
         let providers = {};
+        let uploadedVoices = [];
+        let selectedVoiceId = null;
 
         // Load providers on startup
         async function loadProviders() {
@@ -369,6 +651,20 @@
             }
         }
 
+        // Load uploaded voices
+        async function loadVoices() {
+            try {
+                const response = await fetch('/api/voices');
+                const data = await response.json();
+                uploadedVoices = data.voices;
+                renderVoiceList();
+                // Reload providers to get updated voice list
+                await loadProviders();
+            } catch (e) {
+                console.error('Failed to load voices:', e);
+            }
+        }
+
         // Check API health
         async function checkHealth() {
             try {
@@ -379,6 +675,10 @@
                 // MLX-Audio
                 const mlxDot = document.getElementById('mlxDot');
                 mlxDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
+
+                // Voice Clone (same as MLX-Audio since it uses the same server)
+                const voiceCloneDot = document.getElementById('voiceCloneDot');
+                voiceCloneDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
 
                 // ElevenLabs
                 const elevenDot = document.getElementById('elevenDot');
@@ -402,6 +702,7 @@
             const apiKeySection = document.getElementById('apiKeySection');
             const apiKeyInput = document.getElementById('apiKeyInput');
             const providerDesc = document.getElementById('providerDesc');
+            const voiceCloneSection = document.getElementById('voiceCloneSection');
 
             const providerId = providerSelect.value;
             const provider = providers[providerId];
@@ -420,19 +721,26 @@
                 modelSelect.appendChild(option);
             }
 
-            // Update voices (only show if provider has voices)
-            if (provider.voices && Object.keys(provider.voices).length > 0) {
-                voiceRow.style.display = 'grid';
-                voiceSelect.innerHTML = '';
-                for (const [id, name] of Object.entries(provider.voices)) {
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = name;
-                    voiceSelect.appendChild(option);
-                }
+            // Show/hide voice cloning section
+            if (provider.requires_voice_upload) {
+                voiceCloneSection.classList.add('visible');
+                voiceRow.style.display = 'none';  // Hide regular voice selector for voice clone
             } else {
-                voiceRow.style.display = 'none';
-                voiceSelect.innerHTML = '';
+                voiceCloneSection.classList.remove('visible');
+                // Update voices (only show if provider has voices)
+                if (provider.voices && Object.keys(provider.voices).length > 0) {
+                    voiceRow.style.display = 'grid';
+                    voiceSelect.innerHTML = '';
+                    for (const [id, name] of Object.entries(provider.voices)) {
+                        const option = document.createElement('option');
+                        option.value = id;
+                        option.textContent = name;
+                        voiceSelect.appendChild(option);
+                    }
+                } else {
+                    voiceRow.style.display = 'none';
+                    voiceSelect.innerHTML = '';
+                }
             }
 
             // Show/hide API key input
@@ -454,6 +762,162 @@
         document.getElementById('textInput').addEventListener('input', (e) => {
             document.getElementById('charCount').textContent = e.target.value.length;
         });
+
+        // Voice upload functions
+        function onFileSelected() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const fileLabel = document.getElementById('fileInputLabel');
+            const fileText = document.getElementById('fileInputText');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileText.textContent = file.name;
+                fileLabel.classList.add('has-file');
+            } else {
+                fileText.textContent = 'Choose audio file';
+                fileLabel.classList.remove('has-file');
+            }
+            updateUploadButton();
+        }
+
+        function updateUploadButton() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const nameInput = document.getElementById('voiceNameInput');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+
+            const hasFile = fileInput.files.length > 0;
+            const hasName = nameInput.value.trim().length > 0;
+
+            // Transcript is optional - will be auto-transcribed if empty
+            uploadBtn.disabled = !(hasFile && hasName);
+        }
+
+        // Add event listeners for form validation
+        document.getElementById('voiceNameInput').addEventListener('input', updateUploadButton);
+        document.getElementById('voiceTranscriptInput').addEventListener('input', updateUploadButton);
+
+        async function uploadVoice() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const nameInput = document.getElementById('voiceNameInput');
+            const transcriptInput = document.getElementById('voiceTranscriptInput');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const uploadForm = document.getElementById('uploadForm');
+
+            if (!fileInput.files.length) return;
+
+            const file = fileInput.files[0];
+            const name = nameInput.value.trim();
+            const transcript = transcriptInput.value.trim();
+
+            // Show progress
+            uploadBtn.disabled = true;
+            uploadProgress.classList.add('visible');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('name', name);
+                formData.append('transcript', transcript);
+
+                const response = await fetch('/api/upload-voice', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+
+                // Clear form
+                fileInput.value = '';
+                nameInput.value = '';
+                transcriptInput.value = '';
+                document.getElementById('fileInputText').textContent = 'Choose audio file';
+                document.getElementById('fileInputLabel').classList.remove('has-file');
+
+                // Reload voices
+                await loadVoices();
+
+                // Select the newly uploaded voice
+                selectedVoiceId = data.voice_id;
+                renderVoiceList();
+
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            } finally {
+                uploadProgress.classList.remove('visible');
+                updateUploadButton();
+            }
+        }
+
+        function renderVoiceList() {
+            const voiceList = document.getElementById('voiceList');
+            const emptyVoices = document.getElementById('emptyVoices');
+
+            if (uploadedVoices.length === 0) {
+                voiceList.innerHTML = '<div class="empty-voices" id="emptyVoices">No voice samples yet. Upload one above.</div>';
+                selectedVoiceId = null;
+                return;
+            }
+
+            // Auto-select first voice if none selected
+            if (!selectedVoiceId || !uploadedVoices.find(v => v.id === selectedVoiceId)) {
+                selectedVoiceId = uploadedVoices[0].id;
+            }
+
+            voiceList.innerHTML = uploadedVoices.map(voice => `
+                <div class="voice-item ${voice.id === selectedVoiceId ? 'selected' : ''}" onclick="selectVoice('${voice.id}')">
+                    <div class="voice-radio"></div>
+                    <div class="voice-info">
+                        <div class="voice-name">${escapeHtml(voice.name)}</div>
+                        <div class="voice-transcript">${escapeHtml(voice.transcript || '')}</div>
+                    </div>
+                    <button class="voice-delete" onclick="deleteVoice('${voice.id}', event)" title="Delete voice">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function selectVoice(voiceId) {
+            selectedVoiceId = voiceId;
+            renderVoiceList();
+        }
+
+        async function deleteVoice(voiceId, event) {
+            event.stopPropagation();
+
+            if (!confirm('Delete this voice sample?')) return;
+
+            try {
+                const response = await fetch(`/api/voices/${voiceId}`, {
+                    method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Delete failed');
+                }
+
+                await loadVoices();
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
         async function generateSpeech() {
             const text = document.getElementById('textInput').value.trim();
@@ -488,9 +952,15 @@
 
             try {
                 const body = { text, provider, model };
-                // Only send voice if provider has voices
+                // Handle voice cloning provider
                 const providerData = providers[provider];
-                if (voice && providerData?.voices && Object.keys(providerData.voices).length > 0) {
+                if (provider === 'mlx-voice-clone') {
+                    if (!selectedVoiceId) {
+                        throw new Error('Please select a voice sample');
+                    }
+                    body.voice_id = selectedVoiceId;
+                } else if (voice && providerData?.voices && Object.keys(providerData.voices).length > 0) {
+                    // Only send voice if provider has voices
                     body.voice = voice;
                 }
                 if (apiKey) body.api_key = apiKey;
@@ -529,6 +999,7 @@
             if (!audioBlob) return;
 
             const provider = document.getElementById('providerSelect').value;
+            // OpenAI returns WAV, all others return MP3
             const ext = provider === 'openai' ? 'wav' : 'mp3';
 
             const url = URL.createObjectURL(audioBlob);
@@ -543,6 +1014,7 @@
 
         // Initialize
         loadProviders();
+        loadVoices();
         checkHealth();
         setInterval(checkHealth, 30000);
     </script>

@@ -169,3 +169,198 @@ class TestAudioQuality:
         assert long_response.status_code == 200, f"Error: {long_response.text}"
         # Longer text should produce larger audio
         assert len(long_response.content) > len(short_response.content)
+
+
+# Path to dario.mp3 sample file
+SAMPLE_AUDIO_PATH = os.path.join(os.path.dirname(__file__), "..", "dario.mp3")
+
+
+def has_sample_audio():
+    """Check if dario.mp3 sample file exists"""
+    return os.path.exists(SAMPLE_AUDIO_PATH)
+
+
+def has_whisper():
+    """Check if mlx-whisper is available"""
+    try:
+        import mlx_whisper
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.fixture
+def clean_uploads_integration():
+    """Clean up uploads directory before and after integration tests"""
+    from app import UPLOADS_DIR, VOICES_METADATA_FILE
+
+    # Clean before
+    if UPLOADS_DIR.exists():
+        for f in UPLOADS_DIR.iterdir():
+            if f.is_file():
+                f.unlink()
+
+    yield
+
+    # Clean after
+    if UPLOADS_DIR.exists():
+        for f in UPLOADS_DIR.iterdir():
+            if f.is_file():
+                f.unlink()
+
+
+class TestVoiceUploadIntegration:
+    """Integration tests for voice upload with real audio files"""
+
+    @pytest.mark.skipif(not has_sample_audio(), reason="dario.mp3 sample file not found")
+    def test_upload_real_audio_file(self, client, clean_uploads_integration):
+        """Test uploading a real MP3 audio file"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Voice", "transcript": "This is Dario speaking."}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "voice_id" in data
+        assert data["name"] == "Dario Voice"
+        assert data["transcript"] == "This is Dario speaking."
+        assert data["filename"].endswith(".mp3")
+
+    @pytest.mark.skipif(
+        not has_sample_audio() or not has_whisper(),
+        reason="Requires dario.mp3 and mlx-whisper"
+    )
+    def test_upload_with_auto_transcription(self, client, clean_uploads_integration):
+        """Test uploading audio with automatic transcription"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Auto", "transcript": ""}  # Empty transcript triggers auto-transcription
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "voice_id" in data
+        assert data["name"] == "Dario Auto"
+        # Should have auto-transcribed text
+        assert len(data["transcript"]) > 0
+        print(f"Auto-transcribed: {data['transcript']}")
+
+    @pytest.mark.skipif(not has_sample_audio(), reason="dario.mp3 sample file not found")
+    def test_uploaded_voice_appears_in_list(self, client, clean_uploads_integration):
+        """Test that uploaded voice appears in voice list"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Test", "transcript": "Test transcript."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # List voices
+        list_response = client.get("/api/voices")
+        assert list_response.status_code == 200
+        voices = list_response.json()["voices"]
+
+        assert len(voices) == 1
+        assert voices[0]["id"] == voice_id
+        assert voices[0]["name"] == "Dario Test"
+
+    @pytest.mark.skipif(not has_sample_audio(), reason="dario.mp3 sample file not found")
+    def test_uploaded_voice_appears_in_providers(self, client, clean_uploads_integration):
+        """Test that uploaded voice appears in mlx-voice-clone provider"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Provider Test", "transcript": "Test transcript."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # Get providers
+        providers_response = client.get("/api/providers")
+        providers = providers_response.json()["providers"]
+
+        # Check mlx-voice-clone has the uploaded voice
+        voice_clone_voices = providers["mlx-voice-clone"]["voices"]
+        assert voice_id in voice_clone_voices
+        assert voice_clone_voices[voice_id] == "Dario Provider Test"
+
+
+class TestVoiceCloningIntegration:
+    """Integration tests for full voice cloning TTS workflow"""
+
+    @pytest.mark.skipif(
+        not has_sample_audio() or not is_mlx_audio_running(),
+        reason="Requires dario.mp3 and MLX-Audio server"
+    )
+    def test_voice_clone_full_workflow(self, client, clean_uploads_integration):
+        """Test complete voice cloning workflow: upload -> generate"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Step 1: Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Clone", "transcript": "This is Dario speaking in a sample audio clip."}
+        )
+        assert upload_response.status_code == 200
+        voice_id = upload_response.json()["voice_id"]
+        print(f"Uploaded voice: {voice_id}")
+
+        # Step 2: Generate TTS with cloned voice
+        tts_response = client.post("/api/tts", json={
+            "text": "Hello, this is a cloned voice speaking.",
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+
+        assert tts_response.status_code == 200, f"TTS Error: {tts_response.text}"
+        assert tts_response.headers["content-type"] == "audio/mpeg"
+        assert len(tts_response.content) > 1000  # Should have actual audio data
+        print(f"Generated {len(tts_response.content)} bytes of cloned audio")
+
+    @pytest.mark.skipif(
+        not has_sample_audio() or not is_mlx_audio_running(),
+        reason="Requires dario.mp3 and MLX-Audio server"
+    )
+    def test_voice_clone_larger_model(self, client, clean_uploads_integration):
+        """Test voice cloning with larger 1.7B model"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Large", "transcript": "This is Dario speaking in a sample audio clip."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # Generate with larger model
+        tts_response = client.post("/api/tts", json={
+            "text": "Testing the larger voice cloning model.",
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
+            "voice_id": voice_id
+        })
+
+        assert tts_response.status_code == 200, f"TTS Error: {tts_response.text}"
+        assert len(tts_response.content) > 1000
+
