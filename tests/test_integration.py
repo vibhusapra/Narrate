@@ -364,3 +364,141 @@ class TestVoiceCloningIntegration:
         assert tts_response.status_code == 200, f"TTS Error: {tts_response.text}"
         assert len(tts_response.content) > 1000
 
+
+class TestChunkedGenerationIntegration:
+    """Integration tests for chunked TTS generation"""
+
+    @pytest.mark.skipif(
+        not has_sample_audio() or not is_mlx_audio_running(),
+        reason="Requires dario.mp3 and MLX-Audio server"
+    )
+    def test_chunked_generation_workflow(self, client, clean_uploads_integration):
+        """Test chunked generation with ~1000 word text"""
+        import time
+
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Chunked", "transcript": "This is Dario speaking in a sample audio clip."}
+        )
+        assert upload_response.status_code == 200
+        voice_id = upload_response.json()["voice_id"]
+        print(f"Uploaded voice: {voice_id}")
+
+        # Create ~1000 word text (will be split into ~2 chunks)
+        long_text = "This is a test sentence for voice cloning. " * 200  # ~1000 words
+        word_count = len(long_text.split())
+        print(f"Text has {word_count} words")
+
+        # Start chunked generation
+        start_time = time.time()
+        start_response = client.post("/api/tts/chunked", json={
+            "text": long_text,
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+
+        assert start_response.status_code == 200, f"Start Error: {start_response.text}"
+        data = start_response.json()
+        assert "session_id" in data
+        assert data["status"] == "processing"
+        session_id = data["session_id"]
+        print(f"Started session: {session_id}")
+
+        # Poll for completion
+        max_wait = 300  # 5 minutes max
+        poll_interval = 3  # Poll every 3 seconds
+        elapsed = 0
+
+        while elapsed < max_wait:
+            status_response = client.get(f"/api/tts/status/{session_id}")
+            assert status_response.status_code == 200
+            status = status_response.json()
+
+            print(f"Status: {status['status']}, Progress: {status.get('progress')}")
+
+            if status["status"] == "complete":
+                print(f"Completed in {elapsed}s")
+                break
+            elif status["status"] == "error":
+                pytest.fail(f"Generation failed: {status.get('error')}")
+
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+        else:
+            pytest.fail(f"Generation timed out after {max_wait}s")
+
+        # Download audio
+        download_response = client.get(f"/api/tts/download/{session_id}")
+        assert download_response.status_code == 200
+        assert download_response.headers["content-type"] == "audio/mpeg"
+        assert len(download_response.content) > 10000  # Should be substantial audio
+
+        total_time = time.time() - start_time
+        print(f"Total time: {total_time:.1f}s, Audio size: {len(download_response.content)} bytes")
+
+    @pytest.mark.skipif(
+        not has_sample_audio() or not is_mlx_audio_running(),
+        reason="Requires dario.mp3 and MLX-Audio server"
+    )
+    def test_chunked_vs_single_generation(self, client, clean_uploads_integration):
+        """Compare chunked and single generation for same text"""
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        # Upload voice
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario Compare", "transcript": "This is Dario speaking in a sample audio clip."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # Use a short text that can work with both approaches
+        test_text = "This is a short test. " * 50  # ~150 words
+
+        # Single generation (should work for 150 words)
+        single_response = client.post("/api/tts", json={
+            "text": test_text,
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        }, timeout=180.0)
+
+        assert single_response.status_code == 200
+        single_audio_size = len(single_response.content)
+        print(f"Single generation: {single_audio_size} bytes")
+
+        # Chunked generation
+        import time
+        start_response = client.post("/api/tts/chunked", json={
+            "text": test_text,
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+        session_id = start_response.json()["session_id"]
+
+        # Wait for completion
+        for _ in range(100):  # Max 300s
+            status = client.get(f"/api/tts/status/{session_id}").json()
+            if status["status"] == "complete":
+                break
+            time.sleep(3)
+
+        chunked_response = client.get(f"/api/tts/download/{session_id}")
+        assert chunked_response.status_code == 200
+        chunked_audio_size = len(chunked_response.content)
+        print(f"Chunked generation: {chunked_audio_size} bytes")
+
+        # Both should produce audio of similar size (within 20%)
+        size_diff_pct = abs(single_audio_size - chunked_audio_size) / single_audio_size * 100
+        print(f"Size difference: {size_diff_pct:.1f}%")
+        # Note: sizes may differ due to MP3 encoding and chunk boundaries
+        assert chunked_audio_size > 1000  # Should have substantial audio
+

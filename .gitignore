@@ -34,3 +34,6 @@ htmlcov/
 
 # Voice uploads
 uploads/
+
+# Audio files
+*.mp3

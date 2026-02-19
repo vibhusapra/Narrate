@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrate - Text to Speech</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #555;
+        }
+
+        .status-dot.connected { background: #22c55e; }
+        .status-dot.configured { background: #eab308; }
+        .status-dot.disconnected { background: #ef4444; }
+
+        .card {
+            background: #151515;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #999;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea::placeholder {
+            color: #555;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .select-wrapper {
+            width: 100%;
+        }
+
+        select, input[type="password"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        input[type="password"] {
+            cursor: text;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .api-key-section {
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .api-key-section.visible {
+            display: block;
+        }
+
+        .api-key-note {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.4rem;
+        }
+
+        .generate-row {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        button {
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        button:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .audio-section {
+            display: none;
+        }
+
+        .audio-section.visible {
+            display: block;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 2rem;
+            color: #888;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #2d1515;
+            border-color: #5c2626;
+            color: #f87171;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #555;
+            margin-top: 0.5rem;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: #262626;
+            font-size: 0.9rem;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background: #333;
+        }
+
+        .provider-desc {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.4rem;
+        }
+
+        /* Voice Cloning Styles */
+        .voice-clone-section {
+            display: none;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #262626;
+        }
+
+        .voice-clone-section.visible {
+            display: block;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e5e5e5;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .upload-form {
+            background: #0a0a0a;
+            border: 1px dashed #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-form.drag-over {
+            border-color: #667eea;
+            background: #0f0f1a;
+        }
+
+        .upload-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .upload-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #888;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .file-input-label:hover {
+            border-color: #667eea;
+            color: #e5e5e5;
+        }
+
+        .file-input-label.has-file {
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 1rem;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .transcript-input {
+            width: 100%;
+            min-height: 60px;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+
+        .transcript-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-btn {
+            padding: 0.6rem 1.25rem;
+            font-size: 0.9rem;
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.5;
+        }
+
+        .voice-list {
+            margin-top: 1rem;
+        }
+
+        .voice-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: #0a0a0a;
+            border: 1px solid #262626;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .voice-item:hover {
+            border-color: #444;
+        }
+
+        .voice-item.selected {
+            border-color: #667eea;
+            background: #0f0f1a;
+        }
+
+        .voice-radio {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .voice-item.selected .voice-radio {
+            border-color: #667eea;
+        }
+
+        .voice-item.selected .voice-radio::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+        }
+
+        .voice-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .voice-name {
+            font-weight: 500;
+            color: #e5e5e5;
+            margin-bottom: 0.2rem;
+        }
+
+        .voice-transcript {
+            font-size: 0.8rem;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .voice-delete {
+            padding: 0.4rem;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .voice-delete:hover {
+            color: #ef4444;
+            background: #2d1515;
+        }
+
+        .empty-voices {
+            text-align: center;
+            padding: 2rem;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .upload-progress {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            color: #888;
+        }
+
+        .upload-progress.visible {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Narrate</h1>
+            <p class="subtitle">Transform text into natural speech</p>
+            <div class="status-bar" id="statusBar">
+                <span class="status-item">
+                    <span class="status-dot" id="mlxDot"></span>
+                    <span>MLX-Audio</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="voiceCloneDot"></span>
+                    <span>Voice Clone</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="elevenDot"></span>
+                    <span>ElevenLabs</span>
+                </span>
+                <span class="status-item">
+                    <span class="status-dot" id="openaiDot"></span>
+                    <span>OpenAI</span>
+                </span>
+            </div>
+        </header>
+
+        <div class="card">
+            <label for="textInput">Your Text</label>
+            <textarea
+                id="textInput"
+                placeholder="Paste your article, blog post, paper, or any text here..."
+            ></textarea>
+            <div class="char-count">
+                <span id="charCount">0</span> characters · <span id="wordCount">0</span> words
+                <span id="longTextWarning" style="color: #f59e0b; display: none; margin-left: 1rem;">
+                    ⚠️ Long text may take several minutes to generate
+                </span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="controls-grid">
+                <div class="select-wrapper">
+                    <label for="providerSelect">Provider</label>
+                    <select id="providerSelect" onchange="onProviderChange()">
+                        <option value="mlx-audio">MLX-Audio (Local)</option>
+                        <option value="mlx-voice-clone">MLX Voice Clone (Local)</option>
+                        <option value="elevenlabs">ElevenLabs</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                    <p class="provider-desc" id="providerDesc">Local TTS on Apple Silicon</p>
+                </div>
+                <div class="select-wrapper">
+                    <label for="modelSelect">Model</label>
+                    <select id="modelSelect"></select>
+                </div>
+            </div>
+
+            <div class="controls-grid" id="voiceRow" style="display: none;">
+                <div class="select-wrapper">
+                    <label for="voiceSelect">Voice</label>
+                    <select id="voiceSelect"></select>
+                </div>
+                <div></div>
+            </div>
+
+            <div class="api-key-section" id="apiKeySection">
+                <label for="apiKeyInput">API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="Enter your API key">
+                <p class="api-key-note">Stored in browser only. Not sent to our servers.</p>
+            </div>
+
+            <!-- Voice Cloning Section -->
+            <div class="voice-clone-section" id="voiceCloneSection">
+                <div class="section-header">
+                    <span class="section-title">Voice Samples</span>
+                </div>
+
+                <!-- Upload Form -->
+                <div class="upload-form" id="uploadForm">
+                    <div class="upload-row">
+                        <div class="file-input-wrapper">
+                            <div class="file-input-label" id="fileInputLabel">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span id="fileInputText">Choose audio file</span>
+                            </div>
+                            <input type="file" id="voiceFileInput" accept="audio/*" onchange="onFileSelected()">
+                        </div>
+                        <div>
+                            <input type="text" id="voiceNameInput" placeholder="Voice name (e.g., My Voice)">
+                        </div>
+                    </div>
+                    <label for="voiceTranscriptInput" style="margin-bottom: 0.5rem;">Transcript (optional - auto-detected if empty)</label>
+                    <textarea class="transcript-input" id="voiceTranscriptInput" placeholder="Leave empty to auto-transcribe, or type what is said in the audio..."></textarea>
+                    <button class="upload-btn" id="uploadVoiceBtn" onclick="uploadVoice()" disabled>Upload Voice</button>
+                </div>
+
+                <!-- Upload Progress -->
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="spinner"></div>
+                    <span>Uploading voice sample...</span>
+                </div>
+
+                <!-- Voice List -->
+                <div class="voice-list" id="voiceList">
+                    <div class="empty-voices" id="emptyVoices">No voice samples yet. Upload one above.</div>
+                </div>
+            </div>
+
+            <!-- Chunking Toggle (only for voice cloning) -->
+            <div id="chunkingToggleSection" style="display: none; margin-bottom: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="useChunkingCheckbox" style="width: auto; cursor: pointer;">
+                    <span style="color: #e5e5e5; font-size: 0.9rem;">Use chunked generation (for long texts >200 words)</span>
+                </label>
+                <p style="font-size: 0.75rem; color: #666; margin-top: 0.3rem; margin-left: 1.5rem;">
+                    Chunked mode splits text into ~1000 word chunks to avoid timeouts. Disable for faster generation on short texts.
+                </p>
+
+                <!-- Concurrency Control -->
+                <div id="concurrencyControl" style="margin-top: 1rem; padding: 1rem; background: #0a0a0a; border-radius: 8px; border: 1px solid #222;">
+                    <label style="display: block; color: #e5e5e5; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        Parallel Chunks: <span id="concurrencyValue" style="color: #667eea; font-weight: 600;">5</span>
+                    </label>
+                    <input type="range" id="concurrencySlider" min="1" max="20" value="5"
+                           style="width: 100%; cursor: pointer; accent-color: #667eea;">
+                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.75rem; color: #666;">
+                        <span>1 (slower, less RAM)</span>
+                        <span>20 (faster, more RAM)</span>
+                    </div>
+                    <div id="concurrencyEstimates" style="margin-top: 0.75rem; padding: 0.5rem; background: #050505; border-radius: 4px; font-size: 0.75rem; color: #999;">
+                        <div><strong style="color: #e5e5e5;">Estimated RAM:</strong> <span id="ramEstimate">~250 MB</span></div>
+                        <div style="margin-top: 0.25rem;"><strong style="color: #e5e5e5;">Estimated time:</strong> <span id="timeEstimate">Depends on text length</span></div>
+                        <div style="margin-top: 0.25rem; font-size: 0.7rem; color: #555;">Note: Limited by MLX-Audio workers (default: 2)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="generate-row">
+                <button id="generateBtn" onclick="generateSpeech()">Generate Audio</button>
+                <button id="cancelBtn" onclick="cancelGeneration()" style="display: none; background: #dc2626; margin-left: 0.5rem;">Cancel</button>
+            </div>
+        </div>
+
+        <div class="card audio-section" id="audioSection">
+            <label>Generated Audio</label>
+            <div class="loading" id="loadingIndicator" style="display: none;">
+                <div class="spinner"></div>
+                <div style="text-align: center;">
+                    <div id="loadingStatus">Generating speech...</div>
+                    <div id="loadingDetails" style="font-size: 0.9rem; color: #999; margin-top: 0.5rem;"></div>
+                    <div id="loadingProgress" style="margin-top: 0.5rem; color: #667eea;"></div>
+                </div>
+            </div>
+            <div id="audioResult" style="display: none;">
+                <audio id="audioPlayer" controls></audio>
+                <button class="download-btn" id="downloadBtn" onclick="downloadAudio()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download
+                </button>
+            </div>
+            <div class="error" id="errorMessage" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let audioBlob = null;
+        let providers = {};
+        let uploadedVoices = [];
+        let selectedVoiceId = null;
+        let currentSessionId = null;  // Track active chunked generation
+        let pollInterval = null;  // Track polling interval
+
+        // Load providers on startup
+        async function loadProviders() {
+            try {
+                const response = await fetch('/api/providers');
+                const data = await response.json();
+                providers = data.providers;
+                onProviderChange();
+            } catch (e) {
+                console.error('Failed to load providers:', e);
+            }
+        }
+
+        // Load uploaded voices
+        async function loadVoices() {
+            try {
+                const response = await fetch('/api/voices');
+                const data = await response.json();
+                uploadedVoices = data.voices;
+                renderVoiceList();
+                // Reload providers to get updated voice list
+                await loadProviders();
+            } catch (e) {
+                console.error('Failed to load voices:', e);
+            }
+        }
+
+        // Check API health
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                const statuses = data.providers;
+
+                // MLX-Audio
+                const mlxDot = document.getElementById('mlxDot');
+                mlxDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
+
+                // Voice Clone (same as MLX-Audio since it uses the same server)
+                const voiceCloneDot = document.getElementById('voiceCloneDot');
+                voiceCloneDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
+
+                // ElevenLabs
+                const elevenDot = document.getElementById('elevenDot');
+                elevenDot.className = 'status-dot ' + (statuses.elevenlabs === 'configured' ? 'configured' : 'disconnected');
+
+                // OpenAI
+                const openaiDot = document.getElementById('openaiDot');
+                openaiDot.className = 'status-dot ' + (statuses.openai === 'configured' ? 'configured' : 'disconnected');
+
+            } catch (e) {
+                console.error('Health check failed:', e);
+            }
+        }
+
+        // Handle provider change
+        function onProviderChange() {
+            const providerSelect = document.getElementById('providerSelect');
+            const modelSelect = document.getElementById('modelSelect');
+            const voiceSelect = document.getElementById('voiceSelect');
+            const voiceRow = document.getElementById('voiceRow');
+            const apiKeySection = document.getElementById('apiKeySection');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const providerDesc = document.getElementById('providerDesc');
+            const voiceCloneSection = document.getElementById('voiceCloneSection');
+            const chunkingToggleSection = document.getElementById('chunkingToggleSection');
+
+            const providerId = providerSelect.value;
+            const provider = providers[providerId];
+
+            if (!provider) return;
+
+            // Update description
+            providerDesc.textContent = provider.description;
+
+            // Update models
+            modelSelect.innerHTML = '';
+            for (const [id, name] of Object.entries(provider.models)) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = name;
+                modelSelect.appendChild(option);
+            }
+
+            // Show/hide voice cloning section
+            if (provider.requires_voice_upload) {
+                voiceCloneSection.classList.add('visible');
+                voiceRow.style.display = 'none';  // Hide regular voice selector for voice clone
+                chunkingToggleSection.style.display = 'block';  // Show chunking toggle
+            } else {
+                voiceCloneSection.classList.remove('visible');
+                chunkingToggleSection.style.display = 'none';  // Hide chunking toggle
+                // Update voices (only show if provider has voices)
+                if (provider.voices && Object.keys(provider.voices).length > 0) {
+                    voiceRow.style.display = 'grid';
+                    voiceSelect.innerHTML = '';
+                    for (const [id, name] of Object.entries(provider.voices)) {
+                        const option = document.createElement('option');
+                        option.value = id;
+                        option.textContent = name;
+                        voiceSelect.appendChild(option);
+                    }
+                } else {
+                    voiceRow.style.display = 'none';
+                    voiceSelect.innerHTML = '';
+                }
+            }
+
+            // Show/hide API key input
+            if (provider.requires_api_key) {
+                apiKeySection.classList.add('visible');
+                // Load saved API key
+                const savedKey = localStorage.getItem(`narrate_${providerId}_key`);
+                if (savedKey) {
+                    apiKeyInput.value = savedKey;
+                } else {
+                    apiKeyInput.value = '';
+                }
+            } else {
+                apiKeySection.classList.remove('visible');
+            }
+        }
+
+        // Update character and word count
+        document.getElementById('textInput').addEventListener('input', (e) => {
+            const text = e.target.value;
+            const wordCount = text.trim().length > 0 ? text.trim().split(/\s+/).length : 0;
+            document.getElementById('charCount').textContent = text.length;
+            document.getElementById('wordCount').textContent = wordCount;
+
+            // Show warning for long text (>500 words)
+            const warning = document.getElementById('longTextWarning');
+            if (wordCount > 500) {
+                warning.style.display = 'inline';
+            } else {
+                warning.style.display = 'none';
+            }
+
+            // Auto-enable chunking for texts >200 words (for voice cloning)
+            const provider = document.getElementById('providerSelect').value;
+            if (provider === 'mlx-voice-clone' && wordCount > 200) {
+                document.getElementById('useChunkingCheckbox').checked = true;
+            }
+
+            // Update concurrency estimates based on word count
+            updateConcurrencyEstimates();
+        });
+
+        // Concurrency slider event listener
+        document.getElementById('concurrencySlider').addEventListener('input', (e) => {
+            const value = e.target.value;
+            document.getElementById('concurrencyValue').textContent = value;
+            updateConcurrencyEstimates();
+        });
+
+        // Update RAM and time estimates based on word count and concurrency
+        function updateConcurrencyEstimates() {
+            const text = document.getElementById('textInput').value.trim();
+            const wordCount = text.length > 0 ? text.split(/\s+/).length : 0;
+            const concurrency = parseInt(document.getElementById('concurrencySlider').value);
+
+            // Calculate chunks (~1000 words per chunk)
+            const estimatedChunks = Math.max(1, Math.ceil(wordCount / 1000));
+
+            // RAM estimate: ~50MB per concurrent chunk in memory
+            const ramPerChunk = 50; // MB
+            const totalRAM = concurrency * ramPerChunk;
+            document.getElementById('ramEstimate').textContent = `~${totalRAM} MB (${concurrency} chunks × ${ramPerChunk}MB)`;
+
+            // Time estimate: Assume ~60s per chunk with 2 MLX-Audio workers
+            const mlxWorkers = 2; // Default MLX-Audio workers
+            const effectiveConcurrency = Math.min(concurrency, mlxWorkers);
+            const timePerChunk = 60; // seconds
+
+            if (estimatedChunks > 0) {
+                const batches = Math.ceil(estimatedChunks / effectiveConcurrency);
+                const totalSeconds = batches * timePerChunk;
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+
+                document.getElementById('timeEstimate').textContent =
+                    `~${minutes}m ${seconds}s (${estimatedChunks} chunks, ${effectiveConcurrency} parallel)`;
+            } else {
+                document.getElementById('timeEstimate').textContent = 'Depends on text length';
+            }
+        }
+
+        // Voice upload functions
+        function onFileSelected() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const fileLabel = document.getElementById('fileInputLabel');
+            const fileText = document.getElementById('fileInputText');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileText.textContent = file.name;
+                fileLabel.classList.add('has-file');
+            } else {
+                fileText.textContent = 'Choose audio file';
+                fileLabel.classList.remove('has-file');
+            }
+            updateUploadButton();
+        }
+
+        function updateUploadButton() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const nameInput = document.getElementById('voiceNameInput');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+
+            const hasFile = fileInput.files.length > 0;
+            const hasName = nameInput.value.trim().length > 0;
+
+            // Transcript is optional - will be auto-transcribed if empty
+            uploadBtn.disabled = !(hasFile && hasName);
+        }
+
+        // Add event listeners for form validation
+        document.getElementById('voiceNameInput').addEventListener('input', updateUploadButton);
+        document.getElementById('voiceTranscriptInput').addEventListener('input', updateUploadButton);
+
+        async function uploadVoice() {
+            const fileInput = document.getElementById('voiceFileInput');
+            const nameInput = document.getElementById('voiceNameInput');
+            const transcriptInput = document.getElementById('voiceTranscriptInput');
+            const uploadBtn = document.getElementById('uploadVoiceBtn');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const uploadForm = document.getElementById('uploadForm');
+
+            if (!fileInput.files.length) return;
+
+            const file = fileInput.files[0];
+            const name = nameInput.value.trim();
+            const transcript = transcriptInput.value.trim();
+
+            // Show progress
+            uploadBtn.disabled = true;
+            uploadProgress.classList.add('visible');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('name', name);
+                formData.append('transcript', transcript);
+
+                const response = await fetch('/api/upload-voice', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+
+                // Clear form
+                fileInput.value = '';
+                nameInput.value = '';
+                transcriptInput.value = '';
+                document.getElementById('fileInputText').textContent = 'Choose audio file';
+                document.getElementById('fileInputLabel').classList.remove('has-file');
+
+                // Reload voices
+                await loadVoices();
+
+                // Select the newly uploaded voice
+                selectedVoiceId = data.voice_id;
+                renderVoiceList();
+
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            } finally {
+                uploadProgress.classList.remove('visible');
+                updateUploadButton();
+            }
+        }
+
+        function renderVoiceList() {
+            const voiceList = document.getElementById('voiceList');
+            const emptyVoices = document.getElementById('emptyVoices');
+
+            if (uploadedVoices.length === 0) {
+                voiceList.innerHTML = '<div class="empty-voices" id="emptyVoices">No voice samples yet. Upload one above.</div>';
+                selectedVoiceId = null;
+                return;
+            }
+
+            // Auto-select first voice if none selected
+            if (!selectedVoiceId || !uploadedVoices.find(v => v.id === selectedVoiceId)) {
+                selectedVoiceId = uploadedVoices[0].id;
+            }
+
+            voiceList.innerHTML = uploadedVoices.map(voice => `
+                <div class="voice-item ${voice.id === selectedVoiceId ? 'selected' : ''}" onclick="selectVoice('${voice.id}')">
+                    <div class="voice-radio"></div>
+                    <div class="voice-info">
+                        <div class="voice-name">${escapeHtml(voice.name)}</div>
+                        <div class="voice-transcript">${escapeHtml(voice.transcript || '')}</div>
+                    </div>
+                    <button class="voice-delete" onclick="deleteVoice('${voice.id}', event)" title="Delete voice">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function selectVoice(voiceId) {
+            selectedVoiceId = voiceId;
+            renderVoiceList();
+        }
+
+        async function deleteVoice(voiceId, event) {
+            event.stopPropagation();
+
+            if (!confirm('Delete this voice sample?')) return;
+
+            try {
+                const response = await fetch(`/api/voices/${voiceId}`, {
+                    method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Delete failed');
+                }
+
+                await loadVoices();
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function generateSpeech() {
+            const text = document.getElementById('textInput').value.trim();
+            const provider = document.getElementById('providerSelect').value;
+            const wordCount = text.split(/\s+/).length;
+            const useChunking = document.getElementById('useChunkingCheckbox').checked;
+
+            if (!text) {
+                alert('Please enter some text');
+                return;
+            }
+
+            // Use chunking if checkbox is checked (only for voice cloning)
+            if (provider === 'mlx-voice-clone' && useChunking) {
+                await generateChunkedSpeech();
+            } else {
+                await generateSingleSpeech();
+            }
+        }
+
+        async function generateSingleSpeech() {
+            const text = document.getElementById('textInput').value.trim();
+            const provider = document.getElementById('providerSelect').value;
+            const model = document.getElementById('modelSelect').value;
+            const voice = document.getElementById('voiceSelect').value;
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const btn = document.getElementById('generateBtn');
+            const audioSection = document.getElementById('audioSection');
+            const loading = document.getElementById('loadingIndicator');
+            const result = document.getElementById('audioResult');
+            const error = document.getElementById('errorMessage');
+            const player = document.getElementById('audioPlayer');
+
+            // Save API key if provided
+            if (apiKey && providers[provider]?.requires_api_key) {
+                localStorage.setItem(`narrate_${provider}_key`, apiKey);
+            }
+
+            // Calculate estimated time for voice cloning
+            const wordCount = text.split(/\s+/).length;
+            const estimatedTime = provider === 'mlx-voice-clone' ?
+                Math.min(Math.max(60, 60 + (wordCount * 2)), 1200) : 60;
+
+            // Show audio section, reset state
+            audioSection.classList.add('visible');
+            loading.style.display = 'flex';
+            result.style.display = 'none';
+            error.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            // Update loading message
+            const loadingStatus = document.getElementById('loadingStatus');
+            const loadingDetails = document.getElementById('loadingDetails');
+            const loadingProgress = document.getElementById('loadingProgress');
+
+            loadingStatus.textContent = 'Generating speech...';
+            loadingDetails.textContent = `${wordCount.toLocaleString()} words • Est. ${Math.round(estimatedTime / 60)} min`;
+            if (wordCount > 500) {
+                loadingDetails.innerHTML += '<br><span style="color: #f59e0b;">⚠️ Large text - this may take several minutes</span>';
+            }
+
+            // Start progress timer
+            const startTime = Date.now();
+            const progressInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                const progress = Math.min((elapsed / estimatedTime) * 100, 95);
+                loadingProgress.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} elapsed • ${Math.round(progress)}%`;
+            }, 1000);
+
+            try {
+                const body = { text, provider, model };
+                // Handle voice cloning provider
+                const providerData = providers[provider];
+                if (provider === 'mlx-voice-clone') {
+                    if (!selectedVoiceId) {
+                        clearInterval(progressInterval);
+                        throw new Error('Please select a voice sample');
+                    }
+                    body.voice_id = selectedVoiceId;
+                } else if (voice && providerData?.voices && Object.keys(providerData.voices).length > 0) {
+                    // Only send voice if provider has voices
+                    body.voice = voice;
+                }
+                if (apiKey) body.api_key = apiKey;
+
+                // Use AbortController for long timeout on voice cloning
+                const controller = new AbortController();
+                const timeout = provider === 'mlx-voice-clone' ? 3600000 : 120000; // 1 hour for voice clone, 2 min for others
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Generation failed');
+                }
+
+                audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                player.src = audioUrl;
+
+                clearInterval(progressInterval);
+                loading.style.display = 'none';
+                result.style.display = 'block';
+
+            } catch (e) {
+                clearInterval(progressInterval);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                if (e.name === 'AbortError') {
+                    error.textContent = 'Generation timed out. Try using chunked mode for long texts.';
+                } else {
+                    error.textContent = e.message;
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate Audio';
+            }
+        }
+
+        async function generateChunkedSpeech() {
+            const text = document.getElementById('textInput').value.trim();
+            const provider = document.getElementById('providerSelect').value;
+            const model = document.getElementById('modelSelect').value;
+            const btn = document.getElementById('generateBtn');
+            const audioSection = document.getElementById('audioSection');
+            const loading = document.getElementById('loadingIndicator');
+            const result = document.getElementById('audioResult');
+            const error = document.getElementById('errorMessage');
+            const player = document.getElementById('audioPlayer');
+
+            // Validate voice selection
+            if (!selectedVoiceId) {
+                alert('Please select a voice sample');
+                return;
+            }
+
+            const wordCount = text.split(/\s+/).length;
+
+            // Show audio section, reset state
+            audioSection.classList.add('visible');
+            loading.style.display = 'flex';
+            result.style.display = 'none';
+            error.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+            document.getElementById('cancelBtn').style.display = 'inline-block';
+
+            // Update loading message
+            const loadingStatus = document.getElementById('loadingStatus');
+            const loadingDetails = document.getElementById('loadingDetails');
+            const loadingProgress = document.getElementById('loadingProgress');
+
+            loadingStatus.textContent = 'Starting chunked generation...';
+            loadingDetails.textContent = `${wordCount.toLocaleString()} words`;
+            loadingProgress.textContent = 'Initializing...';
+
+            try {
+                // 1. Submit generation request
+                const concurrency = parseInt(document.getElementById('concurrencySlider').value);
+                const body = {
+                    text,
+                    provider,
+                    model,
+                    voice_id: selectedVoiceId,
+                    max_concurrent: concurrency
+                };
+
+                const response = await fetch('/api/tts/chunked', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Failed to start generation');
+                }
+
+                const { session_id } = await response.json();
+                currentSessionId = session_id;  // Store for cancel button
+                loadingStatus.textContent = 'Processing chunks...';
+
+                // 2. Poll for progress
+                pollInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch(`/api/tts/status/${session_id}`);
+                        if (!statusRes.ok) {
+                            clearInterval(pollInterval);
+                            throw new Error('Failed to check status');
+                        }
+
+                        const status = await statusRes.json();
+
+                        if (status.status === 'processing') {
+                            const { current, total } = status.progress;
+                            const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+                            loadingProgress.textContent = `${current}/${total} chunks complete (${percent}%)`;
+
+                            if (total > 0) {
+                                loadingDetails.textContent = `${wordCount.toLocaleString()} words split into ${total} chunks (parallel generation)`;
+                            }
+                        } else if (status.status === 'complete') {
+                            clearInterval(pollInterval);
+
+                            // 3. Download final audio
+                            const audioRes = await fetch(`/api/tts/download/${session_id}`);
+                            if (!audioRes.ok) {
+                                throw new Error('Failed to download audio');
+                            }
+
+                            audioBlob = await audioRes.blob();
+                            const audioUrl = URL.createObjectURL(audioBlob);
+                            player.src = audioUrl;
+
+                            // Show success
+                            loading.style.display = 'none';
+                            result.style.display = 'block';
+                        } else if (status.status === 'error') {
+                            clearInterval(pollInterval);
+                            throw new Error(status.error || 'Generation failed');
+                        }
+                    } catch (e) {
+                        clearInterval(pollInterval);
+                        throw e;
+                    }
+                }, 2000); // Poll every 2 seconds
+
+            } catch (e) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generate Audio';
+                document.getElementById('cancelBtn').style.display = 'none';
+                currentSessionId = null;
+            }
+        }
+
+        async function cancelGeneration() {
+            if (!currentSessionId) return;
+
+            try {
+                // Stop polling
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+
+                // Call backend to cancel
+                await fetch(`/api/tts/cancel/${currentSessionId}`, {
+                    method: 'POST'
+                });
+
+                // Reset UI
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('errorMessage').style.display = 'block';
+                document.getElementById('errorMessage').textContent = 'Generation cancelled by user';
+                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('generateBtn').textContent = 'Generate Audio';
+                document.getElementById('cancelBtn').style.display = 'none';
+                currentSessionId = null;
+            } catch (e) {
+                console.error('Failed to cancel:', e);
+            }
+        }
+
+        function downloadAudio() {
+            if (!audioBlob) return;
+
+            const provider = document.getElementById('providerSelect').value;
+            // OpenAI returns WAV, all others return MP3
+            const ext = provider === 'openai' ? 'wav' : 'mp3';
+
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `narrate_${Date.now()}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialize
+        loadProviders();
+        loadVoices();
+        checkHealth();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>

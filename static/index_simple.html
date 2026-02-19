@@ -100,9 +100,8 @@
         <label>Voice Name</label>
         <input type="text" id="voiceName" placeholder="e.g. David, Sarah">
 
-        <label>Sample Audio (MP3/WAV)</label>
+        <label>Audio File (MP3/WAV)</label>
         <input type="file" id="audioFile" accept="audio/*">
-        <div class="info">Tip: 5–10 seconds works best. Narrate trims silence and keeps a short reference clip for speed.</div>
 
         <label>Transcript (optional - auto-transcription available)</label>
         <textarea id="transcript" placeholder="What is said in the audio file..."></textarea>
@@ -121,17 +120,9 @@
             <option value="">-- Select a voice --</option>
         </select>
 
-        <label>Model</label>
-        <select id="modelSelect">
-            <option value="">Loading models...</option>
-        </select>
-
-        <label>Style / Prompt (optional)</label>
-        <textarea id="instructInput" placeholder="e.g. Calm, conversational, medium pace."></textarea>
-
         <label>Text to Convert</label>
         <textarea id="textInput" placeholder="Enter the text you want to convert to speech..."></textarea>
-        <div class="info">Voice cloning uses your uploaded sample + transcript. If you didn’t provide a transcript, Narrate will auto-transcribe (mlx-whisper).</div>
+        <div class="info">Timeout: 60s + 2s per word (max 30 min)</div>
 
         <button onclick="generateSpeech()">Generate Speech</button>
 
@@ -151,7 +142,6 @@
 
     <script>
         let audioBlob = null;
-        let providersCache = null;
 
         async function loadVoices() {
             try {
@@ -164,7 +154,7 @@
                 select.innerHTML = '<option value="">-- Select a voice --</option>';
                 voicesDiv.innerHTML = '';
 
-                if (!data.voices || data.voices.length === 0) {
+                if (data.voices.length === 0) {
                     voicesDiv.innerHTML = '<p class="info">No voices uploaded yet</p>';
                     return;
                 }
@@ -182,7 +172,7 @@
                     div.innerHTML = `
                         <div>
                             <strong>${voice.name}</strong>
-                            <span class="info"> - ${(voice.transcript || '').length} chars transcript</span>
+                            <span class="info"> - ${voice.transcript_length} chars transcript</span>
                         </div>
                         <button onclick="deleteVoice('${voice.id}')">Delete</button>
                     `;
@@ -190,39 +180,6 @@
                 });
             } catch (error) {
                 console.error('Failed to load voices:', error);
-            }
-        }
-
-        async function loadModels() {
-            const modelSelect = document.getElementById('modelSelect');
-            try {
-                const response = await fetch('/api/providers');
-                const data = await response.json();
-                providersCache = data.providers || {};
-
-                const vc = providersCache['mlx-voice-clone'];
-                const models = (vc && vc.models) ? vc.models : {};
-
-                modelSelect.innerHTML = '';
-                const entries = Object.entries(models);
-                if (entries.length === 0) {
-                    modelSelect.innerHTML = '<option value="">No models found</option>';
-                    return;
-                }
-
-                entries.forEach(([id, label]) => {
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = label;
-                    modelSelect.appendChild(option);
-                });
-
-                // Default to CSM 1B 8-bit if available
-                const preferred = 'mlx-community/csm-1b-8bit';
-                modelSelect.value = entries.some(([id]) => id === preferred) ? preferred : entries[0][0];
-            } catch (error) {
-                console.error('Failed to load models:', error);
-                modelSelect.innerHTML = '<option value="">Failed to load models</option>';
             }
         }
 
@@ -238,11 +195,13 @@
 
             const formData = new FormData();
             formData.append('name', name);
-            formData.append('file', audioFile);
-            formData.append('transcript', transcript || '');
+            formData.append('audio', audioFile);
+            if (transcript) {
+                formData.append('transcript', transcript);
+            }
 
             try {
-                const response = await fetch('/api/upload-voice', {
+                const response = await fetch('/api/voices', {
                     method: 'POST',
                     body: formData
                 });
@@ -285,11 +244,9 @@
         async function generateSpeech() {
             const text = document.getElementById('textInput').value.trim();
             const voiceId = document.getElementById('voiceSelect').value;
-            const model = document.getElementById('modelSelect').value;
-            const instruct = document.getElementById('instructInput').value.trim();
 
-            if (!text || !voiceId || !model) {
-                alert('Please enter text, select a voice, and choose a model');
+            if (!text || !voiceId) {
+                alert('Please enter text and select a voice');
                 return;
             }
 
@@ -307,10 +264,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         text: text,
-                        provider: 'mlx-voice-clone',
-                        model: model,
-                        voice_id: voiceId,
-                        instruct: instruct || null
+                        voice_id: voiceId
                     })
                 });
 
@@ -344,7 +298,6 @@
 
         // Load voices on page load
         loadVoices();
-        loadModels();
     </script>
 </body>
 </html>

@@ -8,7 +8,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
-from app import app, PROVIDERS, UPLOADS_DIR, VOICES_METADATA_FILE
+from app import (
+    app, PROVIDERS, UPLOADS_DIR, VOICES_METADATA_FILE,
+    split_into_sentences, chunk_sentences, concatenate_audio_chunks
+)
 
 
 @pytest.fixture
@@ -476,3 +479,195 @@ class TestVoiceCloneTTS:
         assert response.status_code == 200
         assert response.content == b"fake cloned audio"
         assert response.headers["content-type"] == "audio/mpeg"
+
+
+class TestChunkingFunctions:
+    """Test text chunking and audio concatenation functions"""
+
+    def test_split_into_sentences(self):
+        text = "This is sentence one. This is sentence two! And this is sentence three?"
+        sentences = split_into_sentences(text)
+        assert len(sentences) == 3
+        assert sentences[0] == "This is sentence one."
+        assert sentences[1] == "This is sentence two!"
+        assert sentences[2] == "And this is sentence three?"
+
+    def test_split_into_sentences_handles_newlines(self):
+        text = "First sentence.\n\nSecond sentence. Third sentence!"
+        sentences = split_into_sentences(text)
+        assert len(sentences) == 3
+
+    def test_chunk_sentences_under_limit(self):
+        sentences = ["Short sentence.", "Another short one.", "One more."]
+        chunks = chunk_sentences(sentences, max_words=50)
+        # All sentences fit in one chunk
+        assert len(chunks) == 1
+        assert "Short sentence. Another short one. One more." in chunks[0]
+
+    def test_chunk_sentences_over_limit(self):
+        # Each sentence is ~10 words
+        sentences = [
+            "This is a sentence with exactly ten words in it here.",
+            "Another sentence that also has ten words in it here.",
+            "Yet another sentence with ten words in it here too."
+        ]
+        chunks = chunk_sentences(sentences, max_words=15)
+        # Should split into multiple chunks
+        assert len(chunks) == 3
+
+    def test_chunk_sentences_respects_boundaries(self):
+        sentences = [
+            "Short.",
+            "A " + " ".join(["word"] * 100),  # 100 words
+            "Short again."
+        ]
+        chunks = chunk_sentences(sentences, max_words=50)
+        # First short sentence might be alone, long sentence alone, last short sentence alone
+        assert len(chunks) >= 2
+
+    def test_concatenate_audio_chunks_single(self):
+        # Single chunk should return as-is
+        chunks = [b"audio data"]
+        result = concatenate_audio_chunks(chunks)
+        assert result == b"audio data"
+
+    @patch("app.subprocess.run")
+    def test_concatenate_audio_chunks_multiple(self, mock_run):
+        # Mock subprocess.run to simulate successful ffmpeg execution
+        mock_run.return_value = MagicMock(returncode=0)
+
+        # Create fake MP3 data
+        fake_mp3_header = b'\xff\xfb' + b'\x00' * 100
+        chunks = [fake_mp3_header, fake_mp3_header]
+
+        # Mock the file reading to return concatenated data
+        with patch("builtins.open", create=True) as mock_open:
+            # Configure mock to handle both writing chunks and reading result
+            mock_file_write = MagicMock()
+            mock_file_read = MagicMock()
+            mock_file_read.read.return_value = b"concatenated audio data"
+
+            def open_side_effect(path, mode, *args, **kwargs):
+                if 'r' in mode and not 'b' in mode:
+                    # Reading concat list as text
+                    return MagicMock(__enter__=lambda s: MagicMock(write=lambda x: None), __exit__=lambda *a: None)
+                elif 'w' in mode:
+                    # Writing chunks
+                    return MagicMock(__enter__=lambda s: mock_file_write, __exit__=lambda *a: None)
+                elif 'r' in mode and 'b' in mode:
+                    # Reading final combined file
+                    return MagicMock(__enter__=lambda s: mock_file_read, __exit__=lambda *a: None)
+
+            mock_open.side_effect = open_side_effect
+
+            result = concatenate_audio_chunks(chunks)
+
+        # Should have called ffmpeg
+        assert mock_run.called
+
+    def test_concatenate_empty_chunks_raises_error(self):
+        with pytest.raises(ValueError, match="No audio chunks"):
+            concatenate_audio_chunks([])
+
+
+class TestChunkedTTSEndpoints:
+    """Test chunked TTS generation endpoints"""
+
+    def test_chunked_tts_requires_voice_clone_provider(self, client, clean_uploads):
+        response = client.post("/api/tts/chunked", json={
+            "text": "Hello world",
+            "provider": "mlx-audio",
+            "model": "some-model"
+        })
+        assert response.status_code == 400
+        assert "chunked generation only supports mlx-voice-clone" in response.json()["detail"].lower()
+
+    def test_chunked_tts_requires_voice_id(self, client, clean_uploads):
+        response = client.post("/api/tts/chunked", json={
+            "text": "Hello world",
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"
+        })
+        assert response.status_code == 400
+        assert "voice" in response.json()["detail"].lower()
+
+    def test_chunked_tts_returns_session_id(self, client, clean_uploads):
+        # Upload a voice first
+        fake_audio = b"RIFF" + b"\x00" * 100
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", fake_audio, "audio/wav")},
+            data={"name": "Test Voice", "transcript": "Hello, this is a test."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # Start chunked generation
+        response = client.post("/api/tts/chunked", json={
+            "text": "This is a test. " * 100,  # Long text
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "session_id" in data
+        assert data["status"] == "processing"
+        assert "word_count" in data
+
+    def test_status_endpoint_returns_progress(self, client, clean_uploads):
+        # Upload a voice
+        fake_audio = b"RIFF" + b"\x00" * 100
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", fake_audio, "audio/wav")},
+            data={"name": "Test Voice", "transcript": "Hello, this is a test."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        # Start chunked generation
+        start_response = client.post("/api/tts/chunked", json={
+            "text": "Test text. " * 50,
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+        session_id = start_response.json()["session_id"]
+
+        # Check status
+        status_response = client.get(f"/api/tts/status/{session_id}")
+        assert status_response.status_code == 200
+        status = status_response.json()
+        assert "status" in status
+        assert "progress" in status
+
+    def test_status_nonexistent_session_returns_404(self, client):
+        response = client.get("/api/tts/status/nonexistent-session")
+        assert response.status_code == 404
+
+    def test_download_endpoint_requires_completion(self, client, clean_uploads):
+        # Upload a voice and start generation
+        fake_audio = b"RIFF" + b"\x00" * 100
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", fake_audio, "audio/wav")},
+            data={"name": "Test Voice", "transcript": "Hello, this is a test."}
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        start_response = client.post("/api/tts/chunked", json={
+            "text": "Test. " * 50,
+            "provider": "mlx-voice-clone",
+            "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            "voice_id": voice_id
+        })
+        session_id = start_response.json()["session_id"]
+
+        # Try to download before completion (should fail)
+        download_response = client.get(f"/api/tts/download/{session_id}")
+        assert download_response.status_code == 400
+        assert "not complete" in download_response.json()["detail"].lower()
+
+    def test_download_nonexistent_session_returns_404(self, client):
+        response = client.get("/api/tts/download/nonexistent-session")
+        assert response.status_code == 404
