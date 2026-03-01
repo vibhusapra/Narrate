@@ -8,6 +8,7 @@ Skip with: uv run --extra dev pytest tests/test_api.py -v (unit tests only)
 
 import os
 import pytest
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app import app
@@ -502,3 +503,52 @@ class TestChunkedGenerationIntegration:
         # Note: sizes may differ due to MP3 encoding and chunk boundaries
         assert chunked_audio_size > 1000  # Should have substantial audio
 
+
+class TestPocketMlxIntegration:
+    """Integration-style tests for pocket-tts-mlx endpoints."""
+
+    @patch("app.generate_pocket_tts_mlx", new_callable=AsyncMock)
+    def test_generate_with_uploaded_voice_mlx_direct(self, mock_generator, client, clean_uploads_integration):
+        if not has_sample_audio():
+            pytest.skip("dario.mp3 sample file not found")
+
+        mock_generator.return_value = b"fake pocket tts mlx audio"
+
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "Dario MLX Clone", "transcript": "This is Dario speaking in a sample audio clip."}
+        )
+        assert upload_response.status_code == 200
+        voice_id = upload_response.json()["voice_id"]
+
+        response = client.post("/api/tts", json={
+            "text": "Hello from pocket-tts-mlx clone path.",
+            "provider": "pocket-tts-mlx",
+            "model": "default",
+            "voice": "alba",
+            "voice_id": voice_id,
+        })
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "audio/wav"
+        assert response.content == b"fake pocket tts mlx audio"
+
+    @pytest.mark.skipif(not has_sample_audio(), reason="Requires dario.mp3 sample file")
+    @patch("app.HAS_WHISPER", False)
+    def test_upload_voice_with_missing_stt_dependency_returns_503(self, client, clean_uploads_integration):
+        with open(SAMPLE_AUDIO_PATH, "rb") as f:
+            audio_data = f.read()
+
+        response = client.post(
+            "/api/upload-voice",
+            files={"file": ("dario.mp3", audio_data, "audio/mpeg")},
+            data={"name": "No STT", "transcript": ""}
+        )
+
+        assert response.status_code == 503
+        detail = response.json()["detail"].lower()
+        assert "mlx-whisper" in detail or "install" in detail

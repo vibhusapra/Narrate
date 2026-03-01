@@ -37,3 +37,6 @@ uploads/
 
 # Audio files
 *.mp3
+
+# Environment
+.env

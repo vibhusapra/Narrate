@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import (
     app, PROVIDERS, UPLOADS_DIR, VOICES_METADATA_FILE,
-    split_into_sentences, chunk_sentences, concatenate_audio_chunks
+    split_into_sentences, chunk_sentences, chunk_text_by_tokens, concatenate_audio_chunks
 )
 
 
@@ -58,6 +58,9 @@ class TestProviders:
             assert "description" in provider, f"{provider_id} missing description"
             assert "requires_api_key" in provider, f"{provider_id} missing requires_api_key"
             assert "models" in provider, f"{provider_id} missing models"
+            assert "supports_voice_id" in provider, f"{provider_id} missing supports_voice_id"
+            assert "requires_voice_id" in provider, f"{provider_id} missing requires_voice_id"
+            assert "requires_reference_transcript" in provider, f"{provider_id} missing requires_reference_transcript"
 
     def test_cloud_providers_require_api_key(self, client):
         response = client.get("/api/providers")
@@ -73,7 +76,9 @@ class TestProviders:
         providers = response.json()["providers"]
 
         assert "mlx-voice-clone" in providers
-        assert providers["mlx-voice-clone"]["requires_voice_upload"] is True
+        assert providers["mlx-voice-clone"]["requires_voice_id"] is True
+        assert providers["mlx-voice-clone"]["supports_voice_id"] is True
+        assert providers["mlx-voice-clone"]["requires_reference_transcript"] is True
         assert "models" in providers["mlx-voice-clone"]
         assert len(providers["mlx-voice-clone"]["models"]) > 0
 
@@ -103,6 +108,47 @@ class TestHealth:
         assert "mlx_audio" in providers
         assert "elevenlabs" in providers
         assert "openai" in providers
+
+
+class TestCostEstimate:
+    """Test rough cost estimation endpoint"""
+
+    def test_cost_estimate_returns_tokens_and_cost(self, client):
+        response = client.post("/api/cost-estimate", json={
+            "text": "This is a quick test for rough cost estimates.",
+            "provider": "openai",
+            "model": "tts-1",
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider"] == "openai"
+        assert data["model"] == "tts-1"
+        assert data["input_tokens"] > 0
+        assert isinstance(data["estimated_cost_usd"], float)
+        assert isinstance(data["uses_tiktoken"], bool)
+
+    def test_cost_estimate_local_provider_has_note(self, client):
+        response = client.post("/api/cost-estimate", json={
+            "text": "This is a quick test.",
+            "provider": "mlx-audio",
+            "model": "mlx-community/Spark-TTS-0.5B-bf16",
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider"] == "mlx-audio"
+        assert data["estimated_cost_usd"] in [None, 0]
+        assert "Local providers" in data.get("note", "")
+
+    def test_cost_estimate_unknown_provider(self, client):
+        response = client.post("/api/cost-estimate", json={
+            "text": "Hello",
+            "provider": "unknown-provider",
+            "model": "foo",
+        })
+        assert response.status_code == 400
+        assert "unknown provider" in response.json()["detail"].lower()
 
 
 class TestTTS:
@@ -222,6 +268,71 @@ class TestTTSWithMocks:
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/wav"
+
+    @patch("app.httpx.AsyncClient")
+    def test_non_clone_provider_ignores_voice_id(self, mock_client_class, client):
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.content = b"fake wav"
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        response = client.post(
+            "/api/tts",
+            json={
+                "text": "Hello world",
+                "provider": "openai",
+                "model": "tts-1",
+                "voice": "alloy",
+                "voice_id": "some-unused-id",
+                "api_key": "test-api-key"
+            }
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"fake wav"
+
+    @patch("app.generate_openai_chunked", new_callable=AsyncMock)
+    @patch("app.estimate_tokens_for_text")
+    def test_openai_long_input_uses_chunked_path(self, mock_token_estimate, mock_openai_chunked, client):
+        mock_token_estimate.return_value = (10000, True)
+        mock_openai_chunked.return_value = b"chunked wav data"
+
+        response = client.post("/api/tts", json={
+            "text": "Long text",
+            "provider": "openai",
+            "model": "tts-1",
+            "voice": "alloy",
+            "api_key": "test-api-key"
+        })
+
+        assert response.status_code == 200
+        assert response.content == b"chunked wav data"
+        assert response.headers["content-type"] == "audio/wav"
+        mock_openai_chunked.assert_awaited_once()
+
+    @patch("app.generate_elevenlabs_chunked", new_callable=AsyncMock)
+    @patch("app.estimate_tokens_for_text")
+    def test_elevenlabs_long_input_uses_chunked_path(self, mock_token_estimate, mock_elevenlabs_chunked, client):
+        mock_token_estimate.return_value = (10000, True)
+        mock_elevenlabs_chunked.return_value = b"chunked mp3 data"
+
+        response = client.post("/api/tts", json={
+            "text": "Long text",
+            "provider": "elevenlabs",
+            "model": "eleven_flash_v2_5",
+            "voice": "21m00Tcm4TlvDq8ikWAM",
+            "api_key": "test-api-key"
+        })
+
+        assert response.status_code == 200
+        assert response.content == b"chunked mp3 data"
+        assert response.headers["content-type"] == "audio/mpeg"
+        mock_elevenlabs_chunked.assert_awaited_once()
 
     @patch("app.httpx.AsyncClient")
     def test_mlx_audio_server_error(self, mock_client_class, client):
@@ -358,6 +469,12 @@ class TestVoiceManagement:
         assert voices[0]["name"] == "Test Voice"
         assert voices[0]["transcript"] == "Hello, this is a test."
 
+        assert "transcript_status" in voices[0]
+        assert "transcript_source" in voices[0]
+        assert "duration_seconds" in voices[0]
+        assert "sample_rate" in voices[0]
+        assert "channels" in voices[0]
+
     def test_delete_voice(self, client, clean_uploads):
         # Upload a voice
         fake_audio = b"RIFF" + b"\x00" * 100
@@ -407,6 +524,8 @@ class TestVoiceManagement:
         assert response.status_code == 200
         data = response.json()
         assert data["transcript"] == "Auto transcribed text"
+        assert data["transcript_status"] == "auto_transcribed"
+        assert data["transcript_source"] == "mlx_whisper"
 
     def test_upload_voice_without_transcript_and_no_whisper(self, client, clean_uploads):
         # When whisper is not available and no transcript provided
@@ -419,8 +538,72 @@ class TestVoiceManagement:
                 data={"name": "Test Voice", "transcript": ""}
             )
 
+        assert response.status_code == 503
+        assert "mlx-whisper" in response.json()["detail"].lower() or "install" in response.json()["detail"].lower()
+
+    def test_upload_voice_mode_off_without_transcript(self, client, clean_uploads):
+        fake_audio = b"RIFF" + b"\x00" * 100
+
+        response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", fake_audio, "audio/wav")},
+            data={
+                "name": "Test Voice",
+                "transcript": "",
+                "transcript_mode": "off",
+            },
+        )
+
         assert response.status_code == 400
         assert "transcript" in response.json()["detail"].lower()
+
+    def test_upload_voice_mode_provided_skips_stt(self, client, clean_uploads):
+        fake_audio = b"RIFF" + b"\x00" * 100
+
+        with patch("app.transcribe_audio") as mocked_transcribe:
+            response = client.post(
+                "/api/upload-voice",
+                files={"file": ("test.wav", fake_audio, "audio/wav")},
+                data={"name": "Test Voice", "transcript": "Manual", "transcript_mode": "provided"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["transcript"] == "Manual"
+        mocked_transcribe.assert_not_called()
+
+    @patch("app.transcribe_audio", return_value="Retranscribed text")
+    def test_retranscribe_voice_endpoint_updates_transcript(self, client, clean_uploads):
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", b"RIFF" + b"\x00" * 100, "audio/wav")},
+            data={"name": "Test Voice", "transcript": "seed"},
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        response = client.post(f"/api/voices/{voice_id}/retranscribe", json={})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["voice_id"] == voice_id
+        assert payload["transcript"] == "Retranscribed text"
+        assert payload["transcript_status"] == "auto_transcribed"
+        assert payload["transcript_source"] == "mlx_whisper"
+
+    def test_update_voice_transcript_endpoint(self, client, clean_uploads):
+        upload_response = client.post(
+            "/api/upload-voice",
+            files={"file": ("test.wav", b"RIFF" + b"\x00" * 100, "audio/wav")},
+            data={"name": "Test Voice", "transcript": "seed"},
+        )
+        voice_id = upload_response.json()["voice_id"]
+
+        response = client.patch(
+            f"/api/voices/{voice_id}",
+            json={"transcript": "edited transcript"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["transcript"] == "edited transcript"
+        assert payload["transcript_status"] == "manual"
 
 
 class TestVoiceCloneTTS:
@@ -524,6 +707,17 @@ class TestChunkingFunctions:
         chunks = chunk_sentences(sentences, max_words=50)
         # First short sentence might be alone, long sentence alone, last short sentence alone
         assert len(chunks) >= 2
+
+    def test_chunk_text_by_tokens_keeps_existing_chunk_before_long_sentence(self):
+        text = "Short start. " + ("word " * 5000) + ". End."
+        chunks = chunk_text_by_tokens(
+            text=text,
+            max_tokens=50,
+            provider="openai",
+            model="tts-1",
+        )
+        assert len(chunks) > 1
+        assert chunks[0].startswith("Short start")
 
     def test_concatenate_audio_chunks_single(self):
         # Single chunk should return as-is

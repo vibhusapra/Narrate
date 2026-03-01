@@ -29,6 +29,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger("narrate")
 
+
+def _to_int_env(key: str, default: int) -> int:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+        if parsed <= 0:
+            raise ValueError
+        return parsed
+    except (TypeError, ValueError):
+        logger.warning("Invalid value for %s=%r; using default %s", key, value, default)
+        return default
+
 # Optional: mlx-whisper for auto-transcription
 try:
     import mlx_whisper
@@ -50,6 +64,11 @@ MAX_UPLOAD_SIZE = 25 * 1024 * 1024
 MLX_AUDIO_URL = os.getenv("MLX_AUDIO_URL", "http://127.0.0.1:8000")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_TTS_HARD_MAX_INPUT_CHARS = 65536
+OPENAI_TTS_MAX_INPUT_CHARS = min(
+    _to_int_env("OPENAI_TTS_MAX_INPUT_CHARS", OPENAI_TTS_HARD_MAX_INPUT_CHARS),
+    OPENAI_TTS_HARD_MAX_INPUT_CHARS,
+)
 
 # Session storage for chunked generation (in-memory)
 generation_sessions: Dict[str, dict] = {}
@@ -191,7 +210,43 @@ def chunk_sentences(sentences: List[str], max_words: int = 500) -> List[str]:
     return chunks
 
 
-def concatenate_audio_chunks(audio_chunks: List[bytes], crossfade_ms: int = 20) -> bytes:
+def chunk_text_by_chars(text: str, max_chars: int) -> List[str]:
+    """Split text into chunks by character limit."""
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+
+    if len(cleaned) <= max_chars:
+        return [cleaned]
+
+    chunks: List[str] = []
+    current = ""
+
+    for sentence in split_into_sentences(cleaned):
+        if len(sentence) > max_chars:
+            if current:
+                chunks.append(current)
+                current = ""
+            for i in range(0, len(sentence), max_chars):
+                chunk = sentence[i : i + max_chars].strip()
+                if chunk:
+                    chunks.append(chunk)
+            continue
+
+        candidate = sentence if not current else f"{current} {sentence}"
+        if len(candidate) > max_chars:
+            chunks.append(current)
+            current = sentence
+        else:
+            current = candidate
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
+def concatenate_audio_chunks(audio_chunks: List[bytes], output_ext: str = "mp3", crossfade_ms: int = 20) -> bytes:
     """
     Concatenate audio chunks using ffmpeg.
 
@@ -210,7 +265,7 @@ def concatenate_audio_chunks(audio_chunks: List[bytes], crossfade_ms: int = 20) 
         # Write each chunk to a temporary file
         chunk_files = []
         for i, chunk_bytes in enumerate(audio_chunks):
-            chunk_file = tmpdir_path / f"chunk_{i:04d}.mp3"
+            chunk_file = tmpdir_path / f"chunk_{i:04d}.{output_ext}"
             with open(chunk_file, 'wb') as f:
                 f.write(chunk_bytes)
             chunk_files.append(chunk_file)
@@ -224,7 +279,7 @@ def concatenate_audio_chunks(audio_chunks: List[bytes], crossfade_ms: int = 20) 
                 f.write(f"file '{safe_name}'\n")
 
         # Output file
-        output_file = tmpdir_path / "combined.mp3"
+        output_file = tmpdir_path / f"combined.{output_ext}"
 
         # Use ffmpeg to concatenate
         # -f concat: use concat demuxer
@@ -233,15 +288,18 @@ def concatenate_audio_chunks(audio_chunks: List[bytes], crossfade_ms: int = 20) 
         # -c copy: copy codec (no re-encoding for simple concatenation)
         # For crossfade, we'd need a more complex filter, but simple concat is faster
         try:
-            subprocess.run([
+            ffmpeg_cmd = [
                 'ffmpeg',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', str(concat_list),
-                '-c', 'copy',
-                '-y',  # Overwrite output
-                str(output_file)
-            ], check=True, capture_output=True, text=True)
+            ]
+            if output_ext == "wav":
+                ffmpeg_cmd.extend(['-c:a', 'pcm_s16le', '-y', str(output_file)])
+            else:
+                ffmpeg_cmd.extend(['-c', 'copy', '-y', str(output_file)])
+
+            subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"ffmpeg concatenation failed: {e.stderr}")
             raise Exception(f"Failed to concatenate audio chunks: {e.stderr}")
@@ -693,6 +751,16 @@ async def generate_openai(text: str, model: str, voice: str, api_key: str) -> by
     if not api_key:
         raise HTTPException(status_code=400, detail="OpenAI API key required")
 
+    if len(text) > OPENAI_TTS_MAX_INPUT_CHARS:
+        chunks = chunk_text_by_chars(text, max_chars=OPENAI_TTS_MAX_INPUT_CHARS)
+        audio_chunks: List[bytes] = []
+        for chunk in chunks:
+            audio_chunks.append(await generate_openai(chunk, model, voice, api_key))
+        try:
+            return concatenate_audio_chunks(audio_chunks, output_ext="wav")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to concatenate OpenAI chunks: {e}") from e
+
     voice_id = voice or "alloy"
 
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -710,6 +778,15 @@ async def generate_openai(text: str, model: str, voice: str, api_key: str) -> by
             },
         )
         if response.status_code != 200:
+            if response.status_code == 400 and "string too long" in response.text.lower():
+                chunks = chunk_text_by_chars(text, max_chars=OPENAI_TTS_MAX_INPUT_CHARS)
+                audio_chunks: List[bytes] = []
+                for chunk in chunks:
+                    audio_chunks.append(await generate_openai(chunk, model, voice, api_key))
+                try:
+                    return concatenate_audio_chunks(audio_chunks, output_ext="wav")
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Failed to concatenate OpenAI chunks: {e}") from e
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"OpenAI error: {response.text}"
