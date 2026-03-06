@@ -3,548 +3,1985 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Narrate - Text to Speech</title>
+    <title>Narrate - Multi-Provider TTS</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #07070c;
+            --panel: rgba(14, 17, 32, 0.88);
+            --panel-soft: rgba(29, 37, 61, 0.72);
+            --line: rgba(129, 145, 190, 0.38);
+            --text: #f6f8ff;
+            --muted: #a9b2d9;
+            --accent: #7a8cff;
+            --accent-strong: #6073ff;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #0a0a0a;
-            color: #e5e5e5;
+            font-family: "Avenir Next", "Trebuchet MS", sans-serif;
             min-height: 100vh;
-            padding: 2rem;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 20% 0%, rgba(98, 122, 255, 0.22), transparent 42%),
+                radial-gradient(circle at 88% 20%, rgba(255, 132, 172, 0.14), transparent 36%),
+                radial-gradient(circle at 50% 110%, rgba(39, 225, 221, 0.14), transparent 24%),
+                var(--bg);
+            padding: 28px 16px 40px;
+            line-height: 1.4;
         }
 
         .container {
-            max-width: 800px;
+            max-width: 980px;
             margin: 0 auto;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 14px;
+            letter-spacing: 0.01em;
         }
 
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        h2 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: var(--text);
         }
 
         .subtitle {
-            color: #888;
-            font-size: 1.1rem;
+            color: var(--muted);
+            max-width: 780px;
+            margin-bottom: 24px;
         }
-
-        .status-bar {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            justify-content: center;
-            margin-top: 1rem;
-            font-size: 0.85rem;
-            flex-wrap: wrap;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #555;
-        }
-
-        .status-dot.connected { background: #22c55e; }
-        .status-dot.configured { background: #eab308; }
-        .status-dot.disconnected { background: #ef4444; }
 
         .card {
-            background: #151515;
-            border: 1px solid #262626;
+            background: linear-gradient(180deg, var(--panel) 0%, var(--panel-soft) 100%);
+            border: 1px solid var(--line);
             border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            padding: 18px;
+            margin-bottom: 14px;
+            backdrop-filter: blur(6px);
+            animation: fadeIn 280ms ease-out both;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
         }
 
         label {
             display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: #999;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: #dfe5ff;
+        }
+
+        input, select, textarea, button {
+            width: 100%;
+            padding: 10px 12px;
+            margin-top: 2px;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: rgba(6, 10, 22, 0.9);
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
         }
 
         textarea {
-            width: 100%;
-            min-height: 200px;
-            padding: 1rem;
-            background: #0a0a0a;
-            border: 1px solid #333;
-            border-radius: 8px;
-            color: #e5e5e5;
-            font-size: 1rem;
-            font-family: inherit;
+            min-height: 130px;
             resize: vertical;
-            line-height: 1.6;
         }
 
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
+        input::placeholder, textarea::placeholder {
+            color: #7b86b3;
         }
 
-        textarea::placeholder {
-            color: #555;
-        }
-
-        .controls-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        @media (max-width: 600px) {
-            .controls-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .select-wrapper {
-            width: 100%;
-        }
-
-        select, input[type="password"] {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: #0a0a0a;
-            border: 1px solid #333;
-            border-radius: 8px;
-            color: #e5e5e5;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-
-        input[type="password"] {
-            cursor: text;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .api-key-section {
-            margin-bottom: 1rem;
-            display: none;
-        }
-
-        .api-key-section.visible {
-            display: block;
-        }
-
-        .api-key-note {
-            font-size: 0.8rem;
-            color: #666;
-            margin-top: 0.4rem;
-        }
-
-        .generate-row {
-            display: flex;
-            justify-content: flex-end;
+        select:focus, input:focus, textarea:focus {
+            outline: 2px solid rgba(122, 140, 255, 0.45);
         }
 
         button {
-            padding: 0.75rem 2rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
             border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 1rem;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
+            transition: transform 140ms ease, filter 140ms ease;
+            margin-bottom: 0;
         }
 
-        button:hover:not(:disabled) {
-            opacity: 0.9;
-        }
-
-        button:active:not(:disabled) {
-            transform: scale(0.98);
+        button:hover {
+            filter: brightness(1.08);
         }
 
         button:disabled {
-            opacity: 0.5;
+            background: #39406c;
             cursor: not-allowed;
+            filter: none;
+            opacity: 0.8;
         }
 
-        .audio-section {
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .tiny-btn {
+            width: auto;
+            margin: 0;
+            padding: 6px 12px;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .info {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .inline input[type="checkbox"], .inline input[type="range"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .inline input[type="range"] {
+            width: 190px;
+        }
+
+        #providerDesc {
+            color: #d5defd;
+            padding: 8px 10px;
+            background: rgba(15, 21, 40, 0.8);
+            border-radius: 8px;
+            border: 1px dashed var(--line);
+            margin-bottom: 8px;
+        }
+
+        #providerHint {
+            margin: 6px 0 0;
+            min-height: 18px;
+            color: #ffe79b;
+            font-size: 12px;
+        }
+
+        .voice-item {
+            background: rgba(6, 11, 24, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .voice-meta {
+            font-size: 12px;
+            color: #9face8;
+        }
+
+        #loading, #chunking {
             display: none;
+            border: 1px solid var(--line);
+            background: rgba(16, 22, 45, 0.85);
+            padding: 12px;
+            border-radius: 9px;
+            text-align: center;
         }
 
-        .audio-section.visible {
-            display: block;
+        #loading p, #chunking p {
+            margin-bottom: 6px;
+        }
+
+        #streamPanel {
+            display: none;
+            border: 1px solid var(--line);
+            background: rgba(16, 22, 45, 0.85);
+            padding: 12px;
+            border-radius: 9px;
+            margin-top: 10px;
+        }
+
+        .stream-panel {
+            background: linear-gradient(180deg, rgba(18, 25, 46, 0.94), rgba(12, 16, 29, 0.82));
+        }
+
+        .stream-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stream-chip {
+            font-size: 12px;
+            background: rgba(122, 140, 255, 0.12);
+            border: 1px solid rgba(122, 140, 255, 0.35);
+            border-radius: 999px;
+            padding: 4px 10px;
+            color: #dbe5ff;
+            font-weight: 600;
+        }
+
+        .stream-badge {
+            font-size: 11px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-weight: 600;
+            border: 1px solid rgba(129, 145, 190, 0.4);
+            text-transform: capitalize;
+        }
+
+        .stream-badge.connecting {
+            background: rgba(255, 190, 84, 0.15);
+            border-color: rgba(255, 190, 84, 0.4);
+            color: #ffe5a5;
+        }
+
+        .stream-badge.warming {
+            background: rgba(255, 190, 84, 0.15);
+            border-color: rgba(255, 190, 84, 0.4);
+            color: #ffe5a5;
+        }
+
+        .stream-badge.streaming {
+            background: rgba(122, 140, 255, 0.15);
+            border-color: rgba(122, 140, 255, 0.4);
+            color: #d2dcff;
+        }
+
+        .stream-badge.done {
+            background: rgba(96, 209, 165, 0.14);
+            border-color: rgba(96, 209, 165, 0.35);
+            color: #b9f4d1;
+        }
+
+        .stream-badge.error {
+            background: rgba(255, 124, 124, 0.15);
+            border-color: rgba(255, 124, 124, 0.45);
+            color: #ffcfd5;
+        }
+
+        .stream-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 6px 12px;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .clone-meta {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .clone-badge {
+            font-size: 11px;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-weight: 600;
+            border: 1px solid rgba(129, 145, 190, 0.35);
+            margin-right: 6px;
+        }
+
+        .clone-badge.ok {
+            background: rgba(96, 209, 165, 0.15);
+            border-color: rgba(96, 209, 165, 0.35);
+            color: #b9f4d1;
+        }
+
+        .clone-badge.warn {
+            background: rgba(255, 190, 84, 0.15);
+            border-color: rgba(255, 190, 84, 0.4);
+            color: #ffe5a5;
+        }
+
+        .clone-badge.error {
+            background: rgba(255, 124, 124, 0.15);
+            border-color: rgba(255, 124, 124, 0.45);
+            color: #ffcfd5;
+        }
+
+        .stream-metrics strong {
+            color: #f3f5ff;
+            font-size: 13px;
+        }
+
+        #costEstimate {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #d4dcff;
+        }
+
+        #error {
+            display: none;
+            border: 1px solid #ff7c7c;
+            background: rgba(80, 20, 27, 0.45);
+            border-radius: 9px;
+            color: #ffcfd5;
+            padding: 12px;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+        }
+
+        #result {
+            display: none;
+            animation: fadeIn 280ms ease;
+        }
+
+        #result h2 {
+            margin-bottom: 8px;
         }
 
         audio {
             width: 100%;
-            margin-top: 1rem;
+            margin-top: 10px;
+            height: 42px;
         }
 
-        .loading {
+        .muted-actions {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            padding: 2rem;
-            color: #888;
+            gap: 10px;
+            margin-top: 10px;
         }
 
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #333;
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        progress {
+            width: 100%;
+            height: 14px;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .hidden {
+            display: none !important;
         }
 
-        .error {
-            background: #2d1515;
-            border-color: #5c2626;
-            color: #f87171;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-top: 1rem;
+        @media (max-width: 760px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+
+            .muted-actions {
+                flex-direction: column;
+            }
         }
 
-        .char-count {
-            text-align: right;
-            font-size: 0.8rem;
-            color: #555;
-            margin-top: 0.5rem;
-        }
-
-        .download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            padding: 0.5rem 1rem;
-            background: #262626;
-            font-size: 0.9rem;
-        }
-
-        .download-btn:hover:not(:disabled) {
-            background: #333;
-        }
-
-        .provider-desc {
-            font-size: 0.8rem;
-            color: #666;
-            margin-top: 0.4rem;
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Narrate</h1>
-            <p class="subtitle">Transform text into natural speech</p>
-            <div class="status-bar" id="statusBar">
-                <span class="status-item">
-                    <span class="status-dot" id="mlxDot"></span>
-                    <span>MLX-Audio</span>
-                </span>
-                <span class="status-item">
-                    <span class="status-dot" id="elevenDot"></span>
-                    <span>ElevenLabs</span>
-                </span>
-                <span class="status-item">
-                    <span class="status-dot" id="openaiDot"></span>
-                    <span>OpenAI</span>
-                </span>
-            </div>
-        </header>
+        <h1>🎙️ Narrate - Multi-Provider TTS</h1>
+        <p class="subtitle">
+            Pick a provider, model, and voice, then generate. OpenAI, ElevenLabs, MLX, and Pocket TTS are supported.
+            For voice cloning, upload a reference clip once and choose a provider that accepts `voice_id`.
+        </p>
 
         <div class="card">
-            <label for="textInput">Your Text</label>
-            <textarea
-                id="textInput"
-                placeholder="Paste your article, blog post, paper, or any text here..."
-            ></textarea>
-            <div class="char-count"><span id="charCount">0</span> characters</div>
-        </div>
-
-        <div class="card">
-            <div class="controls-grid">
-                <div class="select-wrapper">
+            <h2>1) Configure Voice</h2>
+            <div class="grid">
+                <div>
                     <label for="providerSelect">Provider</label>
-                    <select id="providerSelect" onchange="onProviderChange()">
-                        <option value="mlx-audio">MLX-Audio (Local)</option>
-                        <option value="elevenlabs">ElevenLabs</option>
-                        <option value="openai">OpenAI</option>
-                    </select>
-                    <p class="provider-desc" id="providerDesc">Local TTS on Apple Silicon</p>
+                    <select id="providerSelect"></select>
+                    <div id="providerDesc">Loading providers…</div>
+                    <div id="providerHint" class="info"></div>
                 </div>
-                <div class="select-wrapper">
-                    <label for="modelSelect">Model</label>
-                    <select id="modelSelect"></select>
+
+                <div class="row">
+                    <div>
+                        <label for="modelSelect">Model</label>
+                        <select id="modelSelect"></select>
+                    </div>
+                    <div>
+                        <label for="voiceSelect">Voice</label>
+                        <select id="voiceSelect"></select>
+                    </div>
                 </div>
-            </div>
 
-            <div class="controls-grid" id="voiceRow" style="display: none;">
-                <div class="select-wrapper">
-                    <label for="voiceSelect">Voice</label>
-                    <select id="voiceSelect"></select>
+                <div id="apiKeySection" class="hidden">
+                    <label for="apiKeyInput">API key (override)</label>
+                    <input id="apiKeyInput" type="password" placeholder="sk-... (leave empty to use server env var)">
+                    <div class="info">Optional if your server environment already has the provider key set.</div>
                 </div>
-                <div></div>
-            </div>
 
-            <div class="api-key-section" id="apiKeySection">
-                <label for="apiKeyInput">API Key</label>
-                <input type="password" id="apiKeyInput" placeholder="Enter your API key">
-                <p class="api-key-note">Stored in browser only. Not sent to our servers.</p>
-            </div>
+                <label class="inline" for="promptToggle">
+                    <input type="checkbox" id="promptToggle" checked>
+                    Add style / instruction prompt
+                </label>
+                <div id="promptRow">
+                    <label for="instructInput">Prompt (optional)</label>
+                    <textarea id="instructInput" placeholder="Calm, conversational, medium pace."></textarea>
+                </div>
 
-            <div class="generate-row">
-                <button id="generateBtn" onclick="generateSpeech()">Generate Audio</button>
+                <label class="inline" for="chunkedToggle">
+                    <input type="checkbox" id="chunkedToggle">
+                    Use chunked generation (recommended for long text)
+                </label>
+                <div id="chunkedControls" class="hidden">
+                    <label for="maxConcurrent">Max concurrent chunks: <span id="maxConcurrentValue">4</span></label>
+                    <input id="maxConcurrent" type="range" min="1" max="8" value="4">
+                    <div class="info">Only available for MLX Voice Clone (Local).</div>
+                </div>
+
+                <label class="inline" for="streamToggle" id="streamToggleRow">
+                    <input type="checkbox" id="streamToggle">
+                    Enable Pocket streaming mode
+                </label>
+                <div id="streamHint" class="info hidden">Streaming mode reads Pocket streaming output.</div>
             </div>
         </div>
 
-        <div class="card audio-section" id="audioSection">
-            <label>Generated Audio</label>
-            <div class="loading" id="loadingIndicator" style="display: none;">
-                <div class="spinner"></div>
-                <span>Generating speech...</span>
+        <div class="card">
+            <h2>2) Generate</h2>
+            <label for="textInput">Text to convert</label>
+            <textarea id="textInput" placeholder="Paste the text you want to narrate…"></textarea>
+
+            <button id="generateBtn" onclick="generateSpeech()">Generate Speech</button>
+
+            <div id="loading">
+                <p>⏳ Generating speech...</p>
             </div>
-            <div id="audioResult" style="display: none;">
+
+            <div id="chunking">
+                <p>⚙️ Running chunked generation… <span id="chunkedStatus"></span></p>
+                <progress id="chunkProgress" value="0" max="100"></progress>
+                <div class="info" id="chunkProgressText">Preparing…</div>
+            </div>
+
+            <div id="streamPanel" class="stream-panel">
+                <div class="stream-header">
+                    <span id="streamProviderChip" class="stream-chip">Streaming</span>
+                    <span id="streamBadge" class="stream-badge">Idle</span>
+                </div>
+                <div class="stream-metrics">
+                    <div>Chunks: <strong id="streamChunkCount">0</strong></div>
+                    <div>Bytes: <strong id="streamBytes">0 B</strong></div>
+                    <div>Buffered: <strong id="streamBufferedSeconds">0.00s</strong></div>
+                    <div>Bitrate: <strong id="streamBitrate">0 kbps</strong></div>
+                </div>
+                <progress id="streamProgress" value="0" max="100"></progress>
+                <div id="streamStateText" class="info">Ready.</div>
+                <div class="muted-actions">
+                    <button id="cancelStreamBtn" class="tiny-btn">Cancel stream</button>
+                    <button id="resetStreamStatsBtn" class="tiny-btn">Reset stream stats</button>
+                </div>
+            </div>
+
+            <div id="costEstimate" class="info">Estimated cost: add text to see estimate</div>
+
+            <div id="error"></div>
+
+            <div id="result">
+                <h2>Generated Audio</h2>
                 <audio id="audioPlayer" controls></audio>
-                <button class="download-btn" id="downloadBtn" onclick="downloadAudio()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Download
-                </button>
+                <div class="muted-actions">
+                    <button id="downloadBtn" class="tiny-btn">Download</button>
+                </div>
             </div>
-            <div class="error" id="errorMessage" style="display: none;"></div>
+        </div>
+
+        <div class="card" id="clonePanel">
+            <h2>3) Voice Cloning</h2>
+            <div class="row">
+                <div>
+                    <label for="voiceName">Voice name</label>
+                    <input type="text" id="voiceName" placeholder="e.g. Sarah, Narrator">
+                </div>
+                <div>
+                    <label for="audioFile">Sample audio (MP3/WAV)</label>
+                    <input type="file" id="audioFile" accept="audio/*">
+                </div>
+            </div>
+            <div class="row">
+                <div>
+                    <label for="cloneTranscriptMode">Transcript mode</label>
+                    <select id="cloneTranscriptMode">
+                        <option value="auto" selected>Auto (transcribe if blank)</option>
+                        <option value="provided">Provided only</option>
+                        <option value="off">Off (no STT)</option>
+                    </select>
+                    <div id="cloneTranscriptModeHint" class="info">Leave transcript blank to auto-transcribe.</div>
+                </div>
+                <div>
+                    <label for="cloneLanguage">STT language (optional)</label>
+                    <input type="text" id="cloneLanguage" placeholder="en, fr, ...">
+                </div>
+            </div>
+            <div>
+                <label for="cloneSttModel">STT model (optional)</label>
+                <input type="text" id="cloneSttModel" placeholder="mlx-community/whisper-tiny">
+            </div>
+            <label for="transcript">Transcript (optional)</label>
+            <textarea id="transcript" placeholder="Provide manually for highest quality (optional)."></textarea>
+            <div class="row" style="grid-template-columns: 1fr auto;">
+                <div id="cloneStatus" class="clone-meta">No reference voice loaded.</div>
+                <div class="muted-actions">
+                    <button id="uploadVoiceBtn" type="button" class="tiny-btn">Upload + Prepare Voice</button>
+                </div>
+            </div>
+            <div class="clone-meta">
+                Choose how to inject a cloned voice in generation.
+            </div>
+            <label for="cloneProviderSelect">Use with provider</label>
+            <select id="cloneProviderSelect"></select>
+            <div id="cloneUsageHint" class="info"></div>
+            <div class="info">Tip: 5–10 seconds works best. Narrate trims silence and keeps a short clip for better results.</div>
+            <div id="voiceList"></div>
         </div>
     </div>
 
     <script>
         let audioBlob = null;
-        let providers = {};
+        let providersCache = {};
+        let uploadedVoices = [];
+        let providerApiStatus = {};
+        let latestExt = "mp3";
+        let currentDownloadName = "narrate-output";
+        let currentDownloadUrl = null;
+        let costEstimateTimer = null;
+        let currentStreamController = null;
+        let streamState = null;
+        let streamAudioContext = null;
+        let streamAudioCursor = 0;
+        let streamPcmChunks = [];
+        let streamStartTs = 0;
+        let selectedCloneVoiceId = null;
 
-        // Load providers on startup
-        async function loadProviders() {
-            try {
-                const response = await fetch('/api/providers');
-                const data = await response.json();
-                providers = data.providers;
-                onProviderChange();
-            } catch (e) {
-                console.error('Failed to load providers:', e);
+        async function init() {
+            await Promise.all([
+                loadProviders(),
+                loadHealth(),
+                loadVoicesFromServer(),
+            ]);
+            renderCloneProviderOptions();
+
+            bindUiEvents();
+
+            const providerSelect = document.getElementById("providerSelect");
+            if (!providerSelect.value) {
+                providerSelect.value = providerSelect.options[0]?.value || "";
+            }
+            onProviderChange();
+            renderUploadedVoiceCards();
+            updateCloneTranscriptHint();
+            scheduleCostEstimateUpdate();
+            resetStreamStats();
+        }
+
+        function bindUiEvents() {
+            const promptToggle = document.getElementById("promptToggle");
+            const promptRow = document.getElementById("promptRow");
+            const chunkedToggle = document.getElementById("chunkedToggle");
+            const chunkedControls = document.getElementById("chunkedControls");
+            const streamToggle = document.getElementById("streamToggle");
+            const streamToggleRow = document.getElementById("streamToggleRow");
+            const streamHint = document.getElementById("streamHint");
+            const cancelStreamBtn = document.getElementById("cancelStreamBtn");
+            const resetStreamStatsBtn = document.getElementById("resetStreamStatsBtn");
+            const maxConcurrent = document.getElementById("maxConcurrent");
+            const maxConcurrentValue = document.getElementById("maxConcurrentValue");
+            const textInput = document.getElementById("textInput");
+            const instructInput = document.getElementById("instructInput");
+            const modelSelect = document.getElementById("modelSelect");
+            const costEstimate = document.getElementById("costEstimate");
+            const providerSelect = document.getElementById("providerSelect");
+            const cloneTranscriptMode = document.getElementById("cloneTranscriptMode");
+            const cloneProviderSelect = document.getElementById("cloneProviderSelect");
+
+            providerSelect.addEventListener("change", onProviderChange);
+            document.getElementById("downloadBtn").addEventListener("click", downloadAudio);
+            document.getElementById("uploadVoiceBtn").addEventListener("click", uploadVoice);
+            textInput.addEventListener("input", scheduleCostEstimateUpdate);
+            instructInput.addEventListener("input", scheduleCostEstimateUpdate);
+            modelSelect.addEventListener("change", scheduleCostEstimateUpdate);
+            cloneTranscriptMode.addEventListener("change", updateCloneTranscriptHint);
+            cloneProviderSelect.addEventListener("change", renderCloneVoiceUsageHint);
+
+            promptToggle.addEventListener("change", () => {
+                promptRow.style.display = promptToggle.checked ? "block" : "none";
+                scheduleCostEstimateUpdate();
+            });
+
+            chunkedToggle.addEventListener("change", () => {
+                chunkedControls.style.display = chunkedToggle.checked ? "block" : "none";
+            });
+            cancelStreamBtn.addEventListener("click", cancelActiveStream);
+            resetStreamStatsBtn.addEventListener("click", () => {
+                resetStreamStats();
+            });
+
+            maxConcurrent.addEventListener("input", () => {
+                maxConcurrentValue.textContent = maxConcurrent.value;
+            });
+
+            if (costEstimate) {
+                costEstimate.textContent = "Estimated cost: add text to see estimate";
             }
         }
 
-        // Check API health
-        async function checkHealth() {
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
-                const statuses = data.providers;
-
-                // MLX-Audio
-                const mlxDot = document.getElementById('mlxDot');
-                mlxDot.className = 'status-dot ' + (statuses.mlx_audio === 'connected' ? 'connected' : 'disconnected');
-
-                // ElevenLabs
-                const elevenDot = document.getElementById('elevenDot');
-                elevenDot.className = 'status-dot ' + (statuses.elevenlabs === 'configured' ? 'configured' : 'disconnected');
-
-                // OpenAI
-                const openaiDot = document.getElementById('openaiDot');
-                openaiDot.className = 'status-dot ' + (statuses.openai === 'configured' ? 'configured' : 'disconnected');
-
-            } catch (e) {
-                console.error('Health check failed:', e);
+        function formatCost(value) {
+            if (!Number.isFinite(value)) {
+                return "$0.00";
             }
+            return `$${value.toFixed(6)}`;
         }
 
-        // Handle provider change
-        function onProviderChange() {
-            const providerSelect = document.getElementById('providerSelect');
-            const modelSelect = document.getElementById('modelSelect');
-            const voiceSelect = document.getElementById('voiceSelect');
-            const voiceRow = document.getElementById('voiceRow');
-            const apiKeySection = document.getElementById('apiKeySection');
-            const apiKeyInput = document.getElementById('apiKeyInput');
-            const providerDesc = document.getElementById('providerDesc');
-
-            const providerId = providerSelect.value;
-            const provider = providers[providerId];
-
-            if (!provider) return;
-
-            // Update description
-            providerDesc.textContent = provider.description;
-
-            // Update models
-            modelSelect.innerHTML = '';
-            for (const [id, name] of Object.entries(provider.models)) {
-                const option = document.createElement('option');
-                option.value = id;
-                option.textContent = name;
-                modelSelect.appendChild(option);
+        function setCostEstimateState(text) {
+            const costEstimate = document.getElementById("costEstimate");
+            if (!costEstimate) {
+                return;
             }
-
-            // Update voices (only show if provider has voices)
-            if (provider.voices && Object.keys(provider.voices).length > 0) {
-                voiceRow.style.display = 'grid';
-                voiceSelect.innerHTML = '';
-                for (const [id, name] of Object.entries(provider.voices)) {
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = name;
-                    voiceSelect.appendChild(option);
-                }
-            } else {
-                voiceRow.style.display = 'none';
-                voiceSelect.innerHTML = '';
-            }
-
-            // Show/hide API key input
-            if (provider.requires_api_key) {
-                apiKeySection.classList.add('visible');
-                // Load saved API key
-                const savedKey = localStorage.getItem(`narrate_${providerId}_key`);
-                if (savedKey) {
-                    apiKeyInput.value = savedKey;
-                } else {
-                    apiKeyInput.value = '';
-                }
-            } else {
-                apiKeySection.classList.remove('visible');
-            }
+            costEstimate.textContent = text;
         }
 
-        // Update character count
-        document.getElementById('textInput').addEventListener('input', (e) => {
-            document.getElementById('charCount').textContent = e.target.value.length;
-        });
+        function scheduleCostEstimateUpdate() {
+            if (costEstimateTimer) {
+                clearTimeout(costEstimateTimer);
+            }
+            costEstimateTimer = setTimeout(updateCostEstimate, 300);
+        }
 
-        async function generateSpeech() {
-            const text = document.getElementById('textInput').value.trim();
-            const provider = document.getElementById('providerSelect').value;
-            const model = document.getElementById('modelSelect').value;
-            const voice = document.getElementById('voiceSelect').value;
-            const apiKey = document.getElementById('apiKeyInput').value;
-            const btn = document.getElementById('generateBtn');
-            const audioSection = document.getElementById('audioSection');
-            const loading = document.getElementById('loadingIndicator');
-            const result = document.getElementById('audioResult');
-            const error = document.getElementById('errorMessage');
-            const player = document.getElementById('audioPlayer');
-
-            if (!text) {
-                alert('Please enter some text');
+        async function updateCostEstimate() {
+            const provider = document.getElementById("providerSelect").value;
+            const model = document.getElementById("modelSelect").value;
+            const text = document.getElementById("textInput").value.trim();
+            if (!provider || !model || !text) {
+                setCostEstimateState("Estimated cost: add text to see estimate");
                 return;
             }
 
-            // Save API key if provided
-            if (apiKey && providers[provider]?.requires_api_key) {
-                localStorage.setItem(`narrate_${provider}_key`, apiKey);
-            }
+            const promptEnabled = document.getElementById("promptToggle").checked;
+            const instruct = promptEnabled ? document.getElementById("instructInput").value.trim() : "";
 
-            // Show audio section, reset state
-            audioSection.classList.add('visible');
-            loading.style.display = 'flex';
-            result.style.display = 'none';
-            error.style.display = 'none';
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
+            const payload = {
+                provider,
+                model,
+                text,
+                instruct,
+            };
 
             try {
-                const body = { text, provider, model };
-                // Only send voice if provider has voices
-                const providerData = providers[provider];
-                if (voice && providerData?.voices && Object.keys(providerData.voices).length > 0) {
-                    body.voice = voice;
-                }
-                if (apiKey) body.api_key = apiKey;
-
-                const response = await fetch('/api/tts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(body),
+                const response = await fetch("/api/cost-estimate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
                 });
 
                 if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.detail || 'Generation failed');
+                    throw new Error("Unable to estimate");
+                }
+
+                const data = await response.json();
+                const tokens = Number(data.input_tokens || 0);
+                const tokenText = `${tokens.toLocaleString()} tokens`;
+                const cost = data.estimated_cost_usd;
+                const usesTiktoken = data.uses_tiktoken ? " • via tiktoken" : "";
+
+                if (typeof cost === "number") {
+                    setCostEstimateState(`Estimated cost: ${formatCost(cost)} (${tokenText}${usesTiktoken})`);
+                    return;
+                }
+
+                if (data.note) {
+                    setCostEstimateState(`Estimated cost: ${tokenText}${usesTiktoken} • ${data.note}`);
+                } else {
+                    setCostEstimateState(`Estimated cost: ${tokenText}${usesTiktoken} (rate not configured)`);
+                }
+            } catch (error) {
+                setCostEstimateState("Estimated cost: unavailable");
+            }
+        }
+
+        async function loadProviders() {
+            const providerSelect = document.getElementById("providerSelect");
+            const providerDesc = document.getElementById("providerDesc");
+
+            try {
+                const response = await fetch("/api/providers");
+                const data = await response.json();
+                providersCache = data.providers || {};
+                renderCloneProviderOptions();
+
+                providerSelect.innerHTML = "";
+                const entries = Object.entries(providersCache);
+                if (!entries.length) {
+                    providerSelect.innerHTML = '<option value="">No providers</option>';
+                    providerDesc.textContent = "No providers available.";
+                    return;
+                }
+
+                entries.forEach(([id, provider]) => {
+                    const opt = document.createElement("option");
+                    opt.value = id;
+                    opt.textContent = provider.name || id;
+                    providerSelect.appendChild(opt);
+                });
+
+                providerSelect.value = entries[0][0];
+                renderCloneProviderOptions();
+            } catch (error) {
+                console.error("Failed to load providers:", error);
+                providerSelect.innerHTML = '<option value="">Load error</option>';
+                providerDesc.textContent = "Could not load providers.";
+                providersCache = {};
+                renderCloneProviderOptions();
+            }
+        }
+
+        async function loadHealth() {
+            try {
+                const response = await fetch("/api/health");
+                const data = await response.json();
+                providerApiStatus = data.providers || {};
+            } catch (error) {
+                providerApiStatus = {};
+            }
+        }
+
+        async function loadVoicesFromServer() {
+            try {
+                const response = await fetch("/api/voices");
+                const data = await response.json();
+                uploadedVoices = data.voices || [];
+                renderUploadedVoiceCards();
+            } catch (error) {
+                console.error("Failed to load voices:", error);
+                uploadedVoices = [];
+                renderUploadedVoiceCards();
+            }
+        }
+
+        function renderCloneProviderOptions() {
+            const select = document.getElementById("cloneProviderSelect");
+            if (!select) {
+                return;
+            }
+            const entries = Object.entries(providersCache || {});
+            const cloneProviders = entries
+                .filter(([, provider]) => provider && provider.supports_voice_id)
+                .map(([id, provider]) => [id, provider.name || id]);
+
+            select.innerHTML = "";
+            if (!cloneProviders.length) {
+                const option = document.createElement("option");
+                option.value = "";
+                option.textContent = "No clone-capable providers";
+                option.disabled = true;
+                select.appendChild(option);
+                renderCloneVoiceUsageHint();
+                return;
+            }
+
+            cloneProviders.forEach(([id, name]) => {
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+
+            if (!select.value) {
+                select.value = cloneProviders[0][0];
+            }
+            renderCloneVoiceUsageHint();
+        }
+
+        function renderCloneVoiceUsageHint() {
+            const providerId = document.getElementById("cloneProviderSelect").value;
+            const provider = providersCache[providerId] || {};
+            const hint = document.getElementById("cloneUsageHint");
+            if (!hint) {
+                return;
+            }
+            if (!providerId) {
+                hint.textContent = "Upload once and pick a clone-capable provider.";
+                return;
+            }
+            if (provider.requires_voice_id) {
+                hint.textContent = `${provider.name || providerId} requires a reference voice for each request.`;
+            } else {
+                hint.textContent = `${provider.name || providerId} can use built-in or uploaded voices.`;
+            }
+        }
+
+        function renderModelOptions(providerId) {
+            const modelSelect = document.getElementById("modelSelect");
+            const provider = providersCache[providerId] || {};
+            const models = provider.models || {};
+            modelSelect.innerHTML = "";
+
+            const entries = Object.entries(models);
+            if (!entries.length) {
+                modelSelect.innerHTML = '<option value="">No models available</option>';
+                return;
+            }
+
+            entries.forEach(([id, label]) => {
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = label;
+                modelSelect.appendChild(option);
+            });
+        }
+
+        function renderVoiceOptions(providerId) {
+            const provider = providersCache[providerId] || {};
+            const voiceSelect = document.getElementById("voiceSelect");
+            const uploadedPrefix = "__uploaded__:";
+
+            voiceSelect.innerHTML = "";
+            const voices = Object.entries(provider.voices || {});
+            const supportsVoiceId = provider.supports_voice_id === true;
+            const requiresVoiceId = provider.requires_voice_id === true;
+
+            if (requiresVoiceId) {
+                if (!uploadedVoices.length) {
+                    const disabled = document.createElement("option");
+                    disabled.value = "";
+                    disabled.textContent = "Upload a reference voice first";
+                    disabled.disabled = true;
+                    voiceSelect.appendChild(disabled);
+                    return;
+                }
+
+                uploadedVoices.forEach((voice) => {
+                    const option = document.createElement("option");
+                    option.value = voice.id;
+                    option.textContent = `${voice.name}${voice.transcript ? ` · ${voice.transcript.length} chars` : " · transcript missing"}`;
+                    voiceSelect.appendChild(option);
+                });
+            } else {
+                if (voices.length) {
+                    voices.forEach(([value, label]) => {
+                        const option = document.createElement("option");
+                        option.value = value;
+                        option.textContent = label;
+                        voiceSelect.appendChild(option);
+                    });
+                } else {
+                    const fallback = document.createElement("option");
+                    fallback.value = "";
+                    fallback.textContent = "Use provider default voice";
+                    voiceSelect.appendChild(fallback);
+                }
+
+                if (supportsVoiceId && uploadedVoices.length) {
+                    const separator = document.createElement("option");
+                    separator.value = "";
+                    separator.textContent = "---- Uploaded voices (clone) ----";
+                    separator.disabled = true;
+                    voiceSelect.appendChild(separator);
+
+                    uploadedVoices.forEach((voice) => {
+                        const option = document.createElement("option");
+                        option.value = `${uploadedPrefix}${voice.id}`;
+                        option.textContent = `${voice.name} (uploaded)`;
+                        voiceSelect.appendChild(option);
+                    });
+                }
+            }
+
+            if (voiceSelect.options.length) {
+                voiceSelect.value = voiceSelect.options[0].value;
+            }
+        }
+
+        function cloneStatusClass(transcriptStatus) {
+            if (transcriptStatus === "manual") {
+                return "ok";
+            }
+            if (transcriptStatus === "auto_transcribed") {
+                return "ok";
+            }
+            return "warn";
+        }
+
+        function cloneStatusLabel(voice) {
+            if (voice.transcript_status === "manual") {
+                return "manual transcript";
+            }
+            if (voice.transcript_status === "auto_transcribed") {
+                return "auto-transcribed";
+            }
+            return "no transcript";
+        }
+
+        function voiceSelectionForProvider(voiceId, providerId) {
+            const provider = providersCache[providerId] || {};
+            const uploadedPrefix = "__uploaded__:";
+            return provider.requires_voice_id ? voiceId : `${uploadedPrefix}${voiceId}`;
+        }
+
+        function renderUploadedVoiceCards() {
+            const voiceList = document.getElementById("voiceList");
+            if (!voiceList) {
+                return;
+            }
+
+            if (!uploadedVoices.length) {
+                voiceList.innerHTML = '<p class="info">No reference voices uploaded yet.</p>';
+                selectedCloneVoiceId = null;
+                return;
+            }
+
+            voiceList.innerHTML = "";
+            uploadedVoices.forEach((voice) => {
+                const item = document.createElement("div");
+                item.className = "voice-item";
+
+                const durationText = voice.duration_seconds
+                    ? `${Math.round((voice.duration_seconds + Number.EPSILON) * 10) / 10}s`
+                    : "n/a";
+                const sampleRateText = voice.sample_rate || "n/a";
+
+                const statusClass = cloneStatusClass(voice.transcript_status || "");
+                const statusLabel = cloneStatusLabel(voice);
+                item.innerHTML = `
+                    <div>
+                        <strong>${voice.name}</strong>
+                        <div class="voice-meta">
+                            ${voice.filename || "Uploaded file"} · ${durationText} · ${sampleRateText}Hz · ${(voice.transcript || "").length} chars
+                        </div>
+                        <div class="voice-meta">${voice.transcript ? `${(voice.transcript || "").slice(0, 90)}${(voice.transcript || "").length > 90 ? "…" : ""}` : "No transcript yet."}</div>
+                        <div class="clone-meta">
+                            <span class="clone-badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                        ${voice.quality_warning ? `<div class="info">⚠️ ${voice.quality_warning}</div>` : ""}
+                    </div>
+                    <div class="muted-actions">
+                        <button type="button" class="tiny-btn" onclick="useCloneVoice('${voice.id}')">Use in Generator</button>
+                        <button type="button" class="tiny-btn" onclick="retranscribeVoice('${voice.id}')">Retranscribe</button>
+                        <button type="button" class="tiny-btn" onclick="deleteVoice('${voice.id}')">Delete</button>
+                        <button type="button" class="tiny-btn" onclick="selectCloneInPanel('${voice.id}')">Select</button>
+                    </div>
+                `;
+                const statusLine = item.querySelector(".clone-meta");
+                if (voice.id === selectedCloneVoiceId && statusLine) {
+                    statusLine.insertAdjacentHTML("afterbegin", '<span class="clone-badge ok">selected</span>');
+                }
+
+                const controls = item.querySelector(".muted-actions");
+                if (voice.transcription_error) {
+                    const retry = document.createElement("button");
+                    retry.type = "button";
+                    retry.className = "tiny-btn";
+                    retry.textContent = "Retry STT";
+                    retry.onclick = () => retranscribeVoice(voice.id);
+                    controls.appendChild(retry);
+                }
+
+                if (voice.transcription_error) {
+                    const errorLine = document.createElement("div");
+                    errorLine.className = "info";
+                    errorLine.textContent = `STT issue: ${voice.transcription_error}`;
+                    item.appendChild(errorLine);
+                }
+
+                voiceList.appendChild(item);
+            });
+        }
+
+        function selectCloneInPanel(voiceId) {
+            selectedCloneVoiceId = voiceId;
+            renderUploadedVoiceCards();
+            renderCloneListSelectionInMain();
+            setCloneStatus(`Selected ${uploadedVoices.find((voice) => voice.id === voiceId)?.name || "voice"} for quick use.`);
+        }
+
+        function setCloneStatus(message, tone = "ok") {
+            const status = document.getElementById("cloneStatus");
+            if (!status) {
+                return;
+            }
+            status.className = `clone-meta ${tone === "error" ? "clone-badge error" : tone === "warn" ? "clone-badge warn" : "clone-badge ok"}`;
+            status.textContent = message;
+        }
+
+        function updateCloneTranscriptHint() {
+            const mode = document.getElementById("cloneTranscriptMode")?.value || "auto";
+            const hint = document.getElementById("cloneTranscriptModeHint");
+            if (!hint) {
+                return;
+            }
+            if (mode === "off") {
+                hint.textContent = "STT is disabled. Transcript must be provided manually.";
+            } else if (mode === "provided") {
+                hint.textContent = "If transcript is blank, generation fails for providers requiring transcript.";
+            } else {
+                hint.textContent = "Auto-transcribe from the clip when transcript is blank.";
+            }
+        }
+
+        function useCloneVoice(voiceId) {
+            const providerId = document.getElementById("cloneProviderSelect").value;
+            const provider = providersCache[providerId] || {};
+            if (!providerId || !provider.supports_voice_id) {
+                setCloneStatus("Select a clone-capable provider first.", "warn");
+                return;
+            }
+
+            const mainProviderSelect = document.getElementById("providerSelect");
+            const voiceSelect = document.getElementById("voiceSelect");
+            const value = voiceSelectionForProvider(voiceId, providerId);
+            const cloneVoice = uploadedVoices.find((voice) => voice.id === voiceId);
+
+            mainProviderSelect.value = providerId;
+            onProviderChange();
+
+            if ([...voiceSelect.options].some((option) => option.value === value)) {
+                voiceSelect.value = value;
+            } else {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = `${cloneVoice?.name || "Uploaded voice"} (uploaded)`;
+                voiceSelect.appendChild(option);
+                voiceSelect.value = value;
+            }
+
+            selectedCloneVoiceId = voiceId;
+            setCloneStatus(`Ready in generator with ${provider.name || providerId}.`, "ok");
+            renderUploadedVoiceCards();
+            setTimeout(() => {
+                document.getElementById("textInput").focus();
+            }, 10);
+        }
+
+        function renderCloneListSelectionInMain() {
+            const providerId = document.getElementById("providerSelect").value;
+            if (!providerId || !selectedCloneVoiceId) {
+                return;
+            }
+            const provider = providersCache[providerId] || {};
+            if (!provider.supports_voice_id) {
+                return;
+            }
+            const voiceSelect = document.getElementById("voiceSelect");
+            const target = voiceSelectionForProvider(selectedCloneVoiceId, providerId);
+            if ([...voiceSelect.options].some((option) => option.value === target)) {
+                voiceSelect.value = target;
+            }
+        }
+
+        async function retranscribeVoice(voiceId) {
+            const language = document.getElementById("cloneLanguage").value.trim();
+            const sttModel = document.getElementById("cloneSttModel").value.trim();
+            const payload = {};
+            if (language) {
+                payload.language = language;
+            }
+            if (sttModel) {
+                payload.stt_model = sttModel;
+            }
+
+            try {
+                setCloneStatus(`Retranscribing voice ${voiceId}…`, "warn");
+                const response = await fetch(`/api/voices/${voiceId}/retranscribe`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                await loadVoicesFromServer();
+                const providerId = document.getElementById("providerSelect").value;
+                renderVoiceOptions(providerId);
+                setCloneStatus("Retranscription updated.", "ok");
+            } catch (error) {
+                setCloneStatus(`Retranscription failed: ${error.message}`, "error");
+            }
+        }
+
+        function applyProviderState(providerId) {
+            const provider = providersCache[providerId] || {};
+            const providerDesc = document.getElementById("providerDesc");
+            const providerHint = document.getElementById("providerHint");
+            const apiKeySection = document.getElementById("apiKeySection");
+            const chunkedToggle = document.getElementById("chunkedToggle");
+            const chunkedControls = document.getElementById("chunkedControls");
+            const promptRow = document.getElementById("promptRow");
+            const streamToggle = document.getElementById("streamToggle");
+            const streamToggleRow = document.getElementById("streamToggleRow");
+            const streamHint = document.getElementById("streamHint");
+            const streamPanel = document.getElementById("streamPanel");
+
+            providerDesc.textContent = provider.description || "";
+            const providerStatusKey = providerId.replace("-", "_");
+            const providerStatus = providerApiStatus[providerStatusKey] || "unknown";
+            const keyHint = provider.requires_api_key
+                ? ` (requires API key) · status: ${providerId === "openai" ? providerApiStatus.openai || "unknown" : providerId === "elevenlabs" ? providerApiStatus.elevenlabs || "unknown" : providerStatus}`
+                : ` (no API key needed) · status: ${providerStatus}`;
+
+            providerHint.textContent = `Optional key override:${keyHint}`;
+            apiKeySection.classList.toggle("hidden", !provider.requires_api_key);
+
+            chunkedToggle.disabled = providerId !== "mlx-voice-clone";
+            chunkedToggle.checked = false;
+            chunkedControls.style.display = "none";
+
+            const supportsStreaming = providerId === "pocket-tts" || providerId === "pocket-tts-mlx";
+            streamToggle.checked = false;
+            const isPocketMlx = providerId === "pocket-tts-mlx";
+            streamToggle.disabled = !supportsStreaming || (isPocketMlx && providerStatus === "not_installed");
+            streamToggleRow.classList.toggle("hidden", !supportsStreaming);
+            streamHint.classList.toggle("hidden", !supportsStreaming);
+            if (supportsStreaming) {
+                streamHint.textContent =
+                    providerId === "pocket-tts-mlx"
+                        ? (providerStatus === "ready" || providerStatus === "installed"
+                            ? "Enable true live playback mode for pocket-tts-mlx streams."
+                            : "Install with `pip install pocket-tts-mlx` to enable local MLX streaming.")
+                        : "Streaming mode reads Pocket's WAV stream; playback starts on completion.";
+            }
+
+            streamPanel.style.display = supportsStreaming ? "block" : "none";
+
+            promptRow.style.display = "block";
+
+            renderModelOptions(providerId);
+            renderVoiceOptions(providerId);
+            if (selectedCloneVoiceId) {
+                renderCloneListSelectionInMain();
+            }
+            scheduleCostEstimateUpdate();
+        }
+
+        function onProviderChange() {
+            const providerId = document.getElementById("providerSelect").value;
+            if (!providerId) {
+                return;
+            }
+            applyProviderState(providerId);
+        }
+
+        function setLoading(isLoading, mode = "normal") {
+            const loading = document.getElementById("loading");
+            const chunking = document.getElementById("chunking");
+            const streamPanel = document.getElementById("streamPanel");
+            const result = document.getElementById("result");
+            const generateBtn = document.getElementById("generateBtn");
+            const isChunked = mode === "chunked";
+            const isStreaming = mode === "stream";
+
+            if (isLoading) {
+                if (isChunked) {
+                    chunking.style.display = "block";
+                    loading.style.display = "none";
+                    streamPanel.style.display = "none";
+                } else if (isStreaming) {
+                    chunking.style.display = "none";
+                    loading.style.display = "block";
+                    streamPanel.style.display = "block";
+                } else {
+                    loading.style.display = "block";
+                    chunking.style.display = "none";
+                    streamPanel.style.display = "none";
+                }
+                result.style.display = "none";
+            } else {
+                loading.style.display = "none";
+                chunking.style.display = "none";
+                if (!isStreaming) {
+                    streamPanel.style.display = "none";
+                }
+            }
+            generateBtn.disabled = isLoading;
+        }
+
+        function showError(message) {
+            const error = document.getElementById("error");
+            error.style.display = "block";
+            error.textContent = `Error: ${message}`;
+        }
+
+        function clearError() {
+            const error = document.getElementById("error");
+            error.style.display = "none";
+            error.textContent = "";
+        }
+
+        function formatBytes(totalBytes) {
+            if (totalBytes < 1024) {
+                return `${totalBytes} B`;
+            }
+            if (totalBytes < 1024 * 1024) {
+                return `${(totalBytes / 1024).toFixed(1)} KB`;
+            }
+            return `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`;
+        }
+
+        function formatSeconds(value) {
+            return `${value.toFixed(2)}s`;
+        }
+
+        function updateStreamMetrics() {
+            const state = streamState || {};
+            const chunkCountEl = document.getElementById("streamChunkCount");
+            const streamBytesEl = document.getElementById("streamBytes");
+            const streamBufferedEl = document.getElementById("streamBufferedSeconds");
+            const streamBitrateEl = document.getElementById("streamBitrate");
+            const streamStateText = document.getElementById("streamStateText");
+            const streamProgress = document.getElementById("streamProgress");
+
+            const elapsedMs = Math.max(0.001, performance.now() - streamStartTs);
+            const bitrate = ((state.bytes || 0) * 8 * 1000 / elapsedMs) / 1000;
+
+            chunkCountEl.textContent = state.chunks || 0;
+            streamBytesEl.textContent = formatBytes(state.bytes || 0);
+            streamBufferedEl.textContent = formatSeconds(state.bufferedSeconds || 0);
+            streamBitrateEl.textContent = `${bitrate.toFixed(0)} kbps`;
+            streamStateText.textContent = state.statusText || "Preparing…";
+            if (streamState && state.totalChunks) {
+                streamProgress.value = Math.min(100, Math.round((state.chunks / state.totalChunks) * 100));
+            }
+        }
+
+        function setStreamState(status, statusText, sampleRate = 0, channels = 0) {
+            if (!streamState) {
+                streamState = {
+                    status: "idle",
+                    statusText: "Ready.",
+                    chunks: 0,
+                    bytes: 0,
+                    bufferedSeconds: 0,
+                    sampleRate: sampleRate || 24000,
+                    channels: channels || 1,
+                    totalChunks: null,
+                };
+            }
+            streamState.status = status;
+            streamState.statusText = statusText;
+            if (sampleRate) {
+                streamState.sampleRate = sampleRate;
+            }
+            if (channels) {
+                streamState.channels = channels;
+            }
+
+            const badge = document.getElementById("streamBadge");
+            badge.classList.remove("connecting", "streaming", "done", "error", "warming");
+            if (status === "connecting" || status === "warming_up" || status === "warming") {
+                badge.classList.add("warming");
+                badge.textContent = status === "warming_up" ? "warming up" : status;
+            } else if (status === "error") {
+                badge.classList.add("error");
+                badge.textContent = "error";
+            } else if (status === "done") {
+                badge.classList.add("done");
+                badge.textContent = "done";
+            } else if (status === "streaming") {
+                badge.classList.add("streaming");
+                badge.textContent = "streaming";
+            } else {
+                badge.textContent = status;
+            }
+
+            const providerChip = document.getElementById("streamProviderChip");
+            providerChip.textContent = streamState.provider || "Streaming";
+            updateStreamMetrics();
+        }
+
+        function resetStreamStats() {
+            streamState = {
+                provider: streamState && streamState.provider ? streamState.provider : "Pocket stream",
+                status: "idle",
+                statusText: "Ready.",
+                chunks: 0,
+                bytes: 0,
+                bufferedSeconds: 0,
+                sampleRate: 24000,
+                channels: 1,
+                totalChunks: null,
+            };
+            streamPcmChunks = [];
+            streamStartTs = performance.now();
+            setStreamState("ready", "Ready.");
+            document.getElementById("streamProgress").value = 0;
+            streamAudioCursor = 0;
+        }
+
+        function stopStreamPlayback() {
+            if (streamAudioContext && streamAudioContext.state !== "closed") {
+                streamAudioContext.close();
+            }
+            streamAudioContext = null;
+        }
+
+        function schedulePcmChunkToAudio(pcmBytes, sampleRate, channels) {
+            if (!pcmBytes.length) {
+                return;
+            }
+            if (!window.AudioContext && !window.webkitAudioContext) {
+                return;
+            }
+
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!streamAudioContext) {
+                streamAudioContext = new AudioContextCtor();
+            }
+            if (streamAudioContext.state === "suspended") {
+                streamAudioContext.resume();
+            }
+
+            const int16 = new Int16Array(pcmBytes.buffer, pcmBytes.byteOffset, Math.floor(pcmBytes.byteLength / 2));
+            const usableSamples = Math.floor(int16.length / channels) * channels;
+            if (!usableSamples) {
+                return;
+            }
+            const frameCount = usableSamples / channels;
+            const clipped = int16.subarray(0, usableSamples);
+            const audioBuffer = streamAudioContext.createBuffer(channels, frameCount, sampleRate);
+
+            for (let ch = 0; ch < channels; ch++) {
+                const channel = audioBuffer.getChannelData(ch);
+                for (let i = 0; i < frameCount; i++) {
+                    const sample = clipped[i * channels + ch] || 0;
+                    channel[i] = Math.max(-1, Math.min(1, sample / 32768));
+                }
+            }
+
+            const source = streamAudioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(streamAudioContext.destination);
+            const now = streamAudioContext.currentTime;
+            const startAt = Math.max(now, streamAudioCursor);
+            source.start(startAt);
+            streamAudioCursor = startAt + audioBuffer.duration;
+        }
+
+        function concatUint8Arrays(parts) {
+            let total = 0;
+            for (const part of parts) {
+                total += part.byteLength;
+            }
+            const out = new Uint8Array(total);
+            let offset = 0;
+            for (const part of parts) {
+                out.set(part, offset);
+                offset += part.byteLength;
+            }
+            return out;
+        }
+
+        function pcm16ToWavBlob(rawPcm, sampleRate, channels) {
+            const pcmData = rawPcm;
+            const sampleRateValue = sampleRate || 24000;
+            const numChannels = channels || 1;
+            const blockAlign = numChannels * 2;
+            const byteRate = sampleRateValue * blockAlign;
+            const dataSize = pcmData.byteLength;
+            const header = new ArrayBuffer(44);
+            const view = new DataView(header);
+
+            const writeString = (offset, value) => {
+                for (let i = 0; i < value.length; i++) {
+                    view.setUint8(offset + i, value.charCodeAt(i));
+                }
+            };
+
+            writeString(0, "RIFF");
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(8, "WAVE");
+            writeString(12, "fmt ");
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRateValue, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, 16, true);
+            writeString(36, "data");
+            view.setUint32(40, dataSize, true);
+
+            return new Blob([header, pcmData]);
+        }
+
+        function base64ToUint8Array(encoded) {
+            const binary = atob(encoded);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        function setStreamProviderMeta(providerId) {
+            if (!streamState) {
+                streamState = {};
+            }
+            streamState.provider = providerId === "pocket-tts-mlx" ? "Pocket TTS (MLX)" : "Pocket TTS";
+            const chip = document.getElementById("streamProviderChip");
+            chip.textContent = streamState.provider;
+        }
+
+        function cancelActiveStream() {
+            if (currentStreamController) {
+                currentStreamController.abort();
+                currentStreamController = null;
+            }
+            if (streamState && streamState.status === "streaming") {
+                setStreamState("error", "Stream cancelled.");
+            }
+            stopStreamPlayback();
+            setLoading(false, "stream");
+        }
+
+        function parseSseEventsFromBuffer(buffer) {
+            const events = [];
+            const blocks = buffer.split("\n\n");
+            const remainder = blocks.pop();
+            for (const block of blocks) {
+                const lines = block.split("\n");
+                let eventName = "message";
+                let dataLine = "";
+                for (const line of lines) {
+                    if (line.startsWith("event:")) {
+                        eventName = line.slice(6).trim();
+                    } else if (line.startsWith("data:")) {
+                        dataLine += line.slice(5).trim();
+                    }
+                }
+                if (!dataLine) {
+                    continue;
+                }
+                try {
+                    events.push({ event: eventName, data: JSON.parse(dataLine) });
+                } catch (error) {
+                    events.push({ event: eventName, data: null });
+                }
+            }
+            return { events, remainder };
+        }
+
+        async function uploadVoice() {
+            clearError();
+            const name = document.getElementById("voiceName").value.trim();
+            const audioFile = document.getElementById("audioFile").files[0];
+            const transcript = document.getElementById("transcript").value.trim();
+            const transcriptMode = document.getElementById("cloneTranscriptMode").value;
+            const language = document.getElementById("cloneLanguage").value.trim();
+            const sttModel = document.getElementById("cloneSttModel").value.trim();
+
+            if (!name || !audioFile) {
+                showError("Please provide both a voice name and an audio file.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("name", name);
+            formData.append("file", audioFile);
+            formData.append("transcript", transcript || "");
+            formData.append("transcript_mode", transcriptMode || "auto");
+            if (language) {
+                formData.append("language", language);
+            }
+            if (sttModel) {
+                formData.append("stt_model", sttModel);
+            }
+
+            setCloneStatus("Uploading and preparing voice reference…", "warn");
+
+            try {
+                const response = await fetch("/api/upload-voice", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                const data = await response.json();
+                selectedCloneVoiceId = data.voice_id;
+                document.getElementById("voiceName").value = "";
+                document.getElementById("audioFile").value = "";
+                document.getElementById("transcript").value = "";
+                document.getElementById("transcript").value = data.transcript || "";
+                const statusBits = [];
+                if (data.transcript_status) {
+                    statusBits.push(data.transcript_status.replace("_", " "));
+                }
+                if (data.transcript_source) {
+                    statusBits.push(`source: ${data.transcript_source}`);
+                }
+                if (data.duration_seconds) {
+                    statusBits.push(`duration: ${Math.round(data.duration_seconds * 10) / 10}s`);
+                }
+                setCloneStatus(`Prepared ${name}. ${statusBits.join(" • ")}`);
+
+                await loadVoicesFromServer();
+                const providerId = document.getElementById("providerSelect").value;
+                renderVoiceOptions(providerId);
+                renderCloneProviderOptions();
+                onProviderChange();
+                renderUploadedVoiceCards();
+                if (selectedCloneVoiceId) {
+                    selectCloneInPanel(selectedCloneVoiceId);
+                }
+            } catch (error) {
+                showError(`Upload failed: ${error.message}`);
+                setCloneStatus(`Upload failed: ${error.message}`, "error");
+            }
+        }
+
+        async function deleteVoice(voiceId) {
+            if (!confirm("Delete this voice?")) return;
+            try {
+                const response = await fetch(`/api/voices/${voiceId}`, {
+                    method: "DELETE",
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                await loadVoicesFromServer();
+                const providerId = document.getElementById("providerSelect").value;
+                renderVoiceOptions(providerId);
+                onProviderChange();
+                renderUploadedVoiceCards();
+                if (selectedCloneVoiceId === voiceId) {
+                    selectedCloneVoiceId = null;
+                    setCloneStatus("Deleted selected voice.");
+                }
+            } catch (error) {
+                showError(`Delete failed: ${error.message}`);
+            }
+        }
+
+        async function generateSpeech() {
+            clearError();
+            setLoading(true);
+
+            const provider = document.getElementById("providerSelect").value;
+            const isPocketProvider = provider === "pocket-tts" || provider === "pocket-tts-mlx";
+            const uploadedPrefix = "__uploaded__:";
+            const providerCfg = providersCache[provider] || {};
+            const supportsVoiceId = providerCfg.supports_voice_id === true;
+            const requiresVoiceId = providerCfg.requires_voice_id === true;
+            const text = document.getElementById("textInput").value.trim();
+            const model = document.getElementById("modelSelect").value;
+            const voice = document.getElementById("voiceSelect").value;
+            const chunkedToggle = document.getElementById("chunkedToggle");
+            const streamToggle = document.getElementById("streamToggle");
+            const useChunked = provider === "mlx-voice-clone" && chunkedToggle && chunkedToggle.checked;
+            const useStreamingPocket = provider === "pocket-tts" && streamToggle && streamToggle.checked;
+            const useStreamingPocketMlx = provider === "pocket-tts-mlx" && streamToggle && streamToggle.checked;
+            const promptEnabled = document.getElementById("promptToggle").checked;
+            const instruct = promptEnabled ? document.getElementById("instructInput").value.trim() : "";
+            const apiKey = document.getElementById("apiKeyInput").value.trim();
+
+            if (!text) {
+                setLoading(false);
+                showError("Please enter text to convert.");
+                return;
+            }
+
+            if (!model) {
+                setLoading(false);
+                showError("Please select a model.");
+                return;
+            }
+
+            if (requiresVoiceId && !voice) {
+                setLoading(false);
+                showError("Please upload and select a cloned voice first.");
+                return;
+            }
+
+            const payload = {
+                provider,
+                text,
+                model,
+            };
+
+            if (instruct) {
+                payload.instruct = instruct;
+            }
+            if (apiKey) {
+                payload.api_key = apiKey;
+            }
+            if (requiresVoiceId) {
+                payload.voice_id = voice;
+                payload.max_concurrent = Number(document.getElementById("maxConcurrent").value);
+            } else if (supportsVoiceId && voice.startsWith(uploadedPrefix)) {
+                payload.voice_id = voice.substring(uploadedPrefix.length);
+            } else if (voice) {
+                payload.voice = voice;
+            }
+            if (provider === "pocket-tts" || provider === "pocket-tts-mlx") {
+                payload.stream = useStreamingPocket || useStreamingPocketMlx;
+            }
+
+            await updateCostEstimate();
+
+            try {
+                if (useChunked) {
+                    await generateChunked(payload);
+                    return;
+                }
+                if (useStreamingPocketMlx) {
+                    await generatePocketMlxStream(payload);
+                    return;
+                }
+                if (useStreamingPocket) {
+                    await generatePocketBufferedStream(payload);
+                    return;
+                }
+
+                const response = await fetch("/api/tts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
                 }
 
                 audioBlob = await response.blob();
+                latestExt = provider === "openai" || provider === "pocket-tts" || provider === "pocket-tts-mlx" ? "wav" : "mp3";
                 const audioUrl = URL.createObjectURL(audioBlob);
-                player.src = audioUrl;
-
-                loading.style.display = 'none';
-                result.style.display = 'block';
-
-            } catch (e) {
-                loading.style.display = 'none';
-                error.style.display = 'block';
-                error.textContent = e.message;
+                const audioPlayer = document.getElementById("audioPlayer");
+                audioPlayer.src = audioUrl;
+                audioPlayer.load();
+                currentDownloadName = `narrate-${Date.now()}.${latestExt}`;
+                document.getElementById("result").style.display = "block";
+            } catch (error) {
+                showError(error.message || "Generation failed.");
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Audio';
+                setLoading(false);
+            }
+        }
+
+        async function generatePocketBufferedStream(payload) {
+            resetStreamStats();
+            setStreamProviderMeta(payload.provider);
+            setStreamState("connecting", "Connecting to /api/tts…");
+            setLoading(true, "stream");
+
+            currentStreamController = new AbortController();
+            const startTs = performance.now();
+            streamStartTs = performance.now();
+            streamState.statusText = "Streaming from /api/tts...";
+            streamState.status = "streaming";
+            streamPcmChunks = [];
+            updateStreamMetrics();
+
+            try {
+                const response = await fetch("/api/tts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                    signal: currentStreamController.signal,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+
+                if (!response.body) {
+                    const blob = await response.blob();
+                    audioBlob = blob;
+                    latestExt = "wav";
+                    currentDownloadName = `narrate-${Date.now()}.wav`;
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.load();
+                    document.getElementById("result").style.display = "block";
+                    setStreamState("done", `Completed in ${formatSeconds((performance.now() - startTs) / 1000)}`);
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                let done = false;
+                while (!done) {
+                    const chunk = await reader.read();
+                    done = chunk.done;
+                    if (chunk.value) {
+                        const view = chunk.value;
+                        streamPcmChunks.push(new Uint8Array(view));
+                        streamState.bytes += view.byteLength;
+                        streamState.chunks += 1;
+                        streamState.bufferedSeconds += (view.byteLength / 2) / Math.max(1, streamState.sampleRate);
+                        updateStreamMetrics();
+                    }
+                }
+
+                const wavBlob = new Blob(streamPcmChunks, { type: "audio/wav" });
+                streamAudioCursor = 0;
+                streamAudioContext = null;
+
+                const audioUrl = URL.createObjectURL(wavBlob);
+                const audioPlayer = document.getElementById("audioPlayer");
+                audioPlayer.src = audioUrl;
+                audioPlayer.load();
+                audioBlob = wavBlob;
+                latestExt = "wav";
+                currentDownloadName = `narrate-${Date.now()}.wav`;
+                document.getElementById("result").style.display = "block";
+                streamState.status = "done";
+                setStreamState("done", `Completed in ${formatSeconds((performance.now() - startTs) / 1000)}`);
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    setStreamState("error", "Stream cancelled.");
+                    return;
+                }
+                setStreamState("error", error.message || "Streaming failed.");
+                throw error;
+            } finally {
+                setLoading(false, "stream");
+                currentStreamController = null;
+            }
+        }
+
+        async function generatePocketMlxStream(payload) {
+            resetStreamStats();
+            setStreamProviderMeta(payload.provider);
+            setStreamState("connecting", "Connecting to /api/tts/stream…");
+            setLoading(true, "stream");
+
+            currentStreamController = new AbortController();
+            const startTs = performance.now();
+            const response = await fetch("/api/tts/stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: currentStreamController.signal,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText);
+            }
+
+            if (!response.body) {
+                throw new Error("Streaming response not available.");
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            streamState.status = "streaming";
+            streamState.statusText = "Streaming...";
+            updateStreamMetrics();
+
+            try {
+                let done = false;
+                let pending = "";
+                while (!done) {
+                    const chunk = await reader.read();
+                    done = chunk.done;
+                    if (!chunk.value) {
+                        continue;
+                    }
+                    pending += decoder.decode(chunk.value, { stream: true });
+                    const parsed = parseSseEventsFromBuffer(pending);
+                    pending = parsed.remainder;
+
+                    for (const event of parsed.events) {
+                        const eventName = event.event;
+                        const eventPayload = event.data || {};
+
+                        if (eventName === "meta") {
+                            streamState.sampleRate = eventPayload.sample_rate || 24000;
+                            streamState.channels = eventPayload.channels || 1;
+                            streamState.statusText = `Initialized in ${eventPayload.initialization_ms || 0} ms`;
+                            setStreamState("streaming", streamState.statusText, streamState.sampleRate, streamState.channels);
+                            continue;
+                        }
+                        if (eventName === "audio") {
+                            const pcmBytes = base64ToUint8Array(eventPayload.chunk || "");
+                            if (!pcmBytes.length) {
+                                continue;
+                            }
+                            streamState.chunks += 1;
+                            streamState.bytes += pcmBytes.byteLength;
+                            streamState.bufferedSeconds += (pcmBytes.byteLength / 2) / streamState.channels / streamState.sampleRate;
+                            streamPcmChunks.push(pcmBytes);
+                            schedulePcmChunkToAudio(pcmBytes, streamState.sampleRate, streamState.channels);
+                            streamState.statusText = `Chunks: ${streamState.chunks}`;
+                            setStreamState("streaming", streamState.statusText, streamState.sampleRate, streamState.channels);
+                            continue;
+                        }
+                        if (eventName === "done") {
+                            const wavBlob = pcm16ToWavBlob(concatUint8Arrays(streamPcmChunks), streamState.sampleRate, streamState.channels);
+                            audioBlob = wavBlob;
+                            latestExt = "wav";
+                            currentDownloadName = `narrate-${Date.now()}.wav`;
+                            const audioUrl = URL.createObjectURL(wavBlob);
+                            const audioPlayer = document.getElementById("audioPlayer");
+                            audioPlayer.src = audioUrl;
+                            audioPlayer.load();
+                            document.getElementById("result").style.display = "block";
+                            setStreamState("done", `Done • ${formatSeconds((performance.now() - startTs) / 1000)}`, streamState.sampleRate, streamState.channels);
+                            return;
+                        }
+                        if (eventName === "error") {
+                            throw new Error(eventPayload.error || eventPayload.detail || "Stream error");
+                        }
+                    }
+                }
+
+                const parsed = parseSseEventsFromBuffer(`${pending}\n\n`);
+                for (const event of parsed.events) {
+                    const eventName = event.event;
+                    const eventPayload = event.data || {};
+                    if (eventName === "done") {
+                        const wavBlob = pcm16ToWavBlob(concatUint8Arrays(streamPcmChunks), streamState.sampleRate, streamState.channels);
+                        audioBlob = wavBlob;
+                        latestExt = "wav";
+                        currentDownloadName = `narrate-${Date.now()}.wav`;
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        const audioPlayer = document.getElementById("audioPlayer");
+                        audioPlayer.src = audioUrl;
+                        audioPlayer.load();
+                        document.getElementById("result").style.display = "block";
+                        setStreamState("done", `Done • ${formatSeconds((performance.now() - startTs) / 1000)}`, streamState.sampleRate, streamState.channels);
+                        return;
+                    }
+                    if (eventName === "error") {
+                        throw new Error(eventPayload.error || eventPayload.detail || "Stream error");
+                    }
+                }
+                if (!streamState.chunks) {
+                    throw new Error("Stream ended without producing audio.");
+                }
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    setStreamState("error", "Stream cancelled.");
+                    return;
+                }
+                setStreamState("error", error.message || "Streaming failed.");
+                throw error;
+            } finally {
+                setLoading(false, "stream");
+                currentStreamController = null;
+            }
+        }
+
+        async function generateChunked(payload) {
+            setLoading(true, true);
+            const chunkedStatus = document.getElementById("chunkedStatus");
+            const chunkProgress = document.getElementById("chunkProgress");
+            const chunkProgressText = document.getElementById("chunkProgressText");
+
+            chunkProgress.value = 0;
+            chunkProgressText.textContent = "Preparing chunks…";
+
+            try {
+                const response = await fetch("/api/tts/chunked", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+
+                const data = await response.json();
+                const sessionId = data.session_id;
+                chunkedStatus.textContent = `session ${sessionId.slice(0, 8)}`;
+
+                while (true) {
+                    const statusResponse = await fetch(`/api/tts/status/${sessionId}`);
+                    if (!statusResponse.ok) {
+                        throw new Error("Failed to read chunked status.");
+                    }
+
+                    const statusData = await statusResponse.json();
+                    const progress = statusData.progress || { current: 0, total: 1 };
+                    const current = Number(progress.current || 0);
+                    const total = Math.max(1, Number(progress.total || 1));
+                    chunkProgress.value = Math.min(100, Math.round((current / total) * 100));
+                    chunkProgressText.textContent = `${current}/${total} chunks complete`;
+                    chunkedStatus.textContent = `${statusData.status || "working"} • ${sessionId.slice(0, 8)}`;
+
+                    if (statusData.status === "complete") {
+                        break;
+                    }
+                    if (statusData.status === "error") {
+                        throw new Error(statusData.error || "Chunked generation failed.");
+                    }
+                    if (statusData.status === "cancelled") {
+                        throw new Error("Generation cancelled.");
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, 900));
+                }
+
+                const downloadResp = await fetch(`/api/tts/download/${sessionId}`);
+                if (!downloadResp.ok) {
+                    throw new Error("Failed to download chunked output.");
+                }
+
+                audioBlob = await downloadResp.blob();
+                latestExt = "mp3";
+                currentDownloadName = `narrate-${sessionId.slice(0, 8)}.mp3`;
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioPlayer = document.getElementById("audioPlayer");
+                audioPlayer.src = audioUrl;
+                audioPlayer.load();
+                document.getElementById("result").style.display = "block";
+            } catch (error) {
+                showError(error.message || "Chunked generation failed.");
+            } finally {
+                setLoading(false);
             }
         }
 
         function downloadAudio() {
-            if (!audioBlob) return;
+            if (!audioBlob) {
+                return;
+            }
 
-            const provider = document.getElementById('providerSelect').value;
-            const ext = provider === 'openai' ? 'wav' : 'mp3';
+            if (currentDownloadUrl) {
+                URL.revokeObjectURL(currentDownloadUrl);
+            }
 
-            const url = URL.createObjectURL(audioBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `narrate_${Date.now()}.${ext}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            currentDownloadUrl = URL.createObjectURL(audioBlob);
+            const anchor = document.createElement("a");
+            anchor.href = currentDownloadUrl;
+            anchor.download = currentDownloadName || `narrate-output.${latestExt}`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
         }
 
-        // Initialize
-        loadProviders();
-        checkHealth();
-        setInterval(checkHealth, 30000);
+        init();
     </script>
 </body>
 </html>

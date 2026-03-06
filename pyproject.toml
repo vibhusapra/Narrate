@@ -9,11 +9,16 @@ dependencies = [
     "uvicorn>=0.27.0",
     "httpx>=0.26.0,<1.0",
     "python-multipart>=0.0.6",
+    "tiktoken>=0.7.0",
 ]
 
 [project.optional-dependencies]
 local = [
     "mlx-audio",
+    "mlx-whisper",
+]
+"pocket-tts-mlx" = [
+    "pocket-tts-mlx",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -24,4 +29,3 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-

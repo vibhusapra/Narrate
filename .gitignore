@@ -31,3 +31,17 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Voice uploads
+uploads/
+
+# Audio files
+*.mp3
+*.wav
+outputs/
+
+# Logs
+*.log
+
+# Environment
+.env
