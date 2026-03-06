@@ -6,15 +6,17 @@ Multi-provider TTS with local voice cloning (MLX-Audio) optimized for Apple Sili
 
 import asyncio
 import base64
+from contextlib import asynccontextmanager
 import json
-import logging
 import inspect
+import logging
+import os
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 import threading
-import struct
 import time
 import uuid
 from datetime import datetime
@@ -34,7 +36,6 @@ from fastapi import (
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import os
 
 try:
     import tiktoken
@@ -166,7 +167,39 @@ try:
 except ImportError:
     HAS_WHISPER = False
 
-app = FastAPI(title="Narrate", description="Text to Speech Audiobook Generator")
+
+def _log_startup_banner() -> None:
+    """Log the current runtime configuration on app startup."""
+    logger.info("=" * 60)
+    logger.info("Narrate - Text to Speech Server")
+    logger.info("=" * 60)
+    logger.info("MLX-Audio URL: %s", MLX_AUDIO_URL)
+    logger.info("Pocket TTS URL: %s", POCKET_TTS_URL)
+    logger.info("ElevenLabs API Key: %s", "✓ Set" if ELEVENLABS_API_KEY else "✗ Not set")
+    logger.info("OpenAI API Key: %s", "✓ Set" if OPENAI_API_KEY else "✗ Not set")
+    logger.info("MLX-Whisper: %s", "✓ Available" if HAS_WHISPER else "✗ Not available")
+    logger.info("Voice sample max seconds: %.0fs", VOICE_SAMPLE_MAX_SECONDS)
+    logger.info("Uploaded voices: %s", len(load_voices_metadata()))
+    logger.info("=" * 60)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    _log_startup_banner()
+    await _start_pocket_tts_server_if_needed()
+    if _pocket_tts_startup_error:
+        logger.warning("Pocket TTS auto-start warning: %s", _pocket_tts_startup_error)
+    try:
+        yield
+    finally:
+        _stop_pocket_tts_server()
+
+
+app = FastAPI(
+    title="Narrate",
+    description="Text to Speech Audiobook Generator",
+    lifespan=lifespan,
+)
 
 # Voice uploads directory
 UPLOADS_DIR = Path("uploads")
@@ -475,6 +508,7 @@ def _serialize_voice_metadata(voice_id: str, voice_info: dict[str, Any]) -> dict
     audio_duration_seconds = voice_info.get("audio_duration_seconds", voice_info.get("duration_seconds"))
     return {
         "id": voice_id,
+        "voice_id": voice_id,
         "name": voice_info.get("name", ""),
         "transcript": voice_info.get("transcript", ""),
         "transcript_status": voice_info.get("transcript_status", "not_available"),
@@ -996,24 +1030,6 @@ async def generate_with_progress(
             )
 
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("=" * 60)
-    logger.info("Narrate - Text to Speech Server")
-    logger.info("=" * 60)
-    logger.info(f"MLX-Audio URL: {MLX_AUDIO_URL}")
-    logger.info(f"Pocket TTS URL: {POCKET_TTS_URL}")
-    logger.info(f"ElevenLabs API Key: {'✓ Set' if ELEVENLABS_API_KEY else '✗ Not set'}")
-    logger.info(f"OpenAI API Key: {'✓ Set' if OPENAI_API_KEY else '✗ Not set'}")
-    logger.info(f"MLX-Whisper: {'✓ Available' if HAS_WHISPER else '✗ Not available'}")
-    logger.info(f"Voice sample max seconds: {VOICE_SAMPLE_MAX_SECONDS:.0f}s")
-    logger.info(f"Uploaded voices: {len(load_voices_metadata())}")
-    logger.info("=" * 60)
-    await _start_pocket_tts_server_if_needed()
-    if _pocket_tts_startup_error:
-        logger.warning("Pocket TTS auto-start warning: %s", _pocket_tts_startup_error)
-
-
 async def _probe_pocket_tts(url: str, timeout_seconds: float = 2.0) -> bool:
     """Check whether Pocket TTS responds to /health."""
     try:
@@ -1129,11 +1145,6 @@ def _stop_pocket_tts_server() -> None:
 @app.get("/")
 async def index():
     return FileResponse("static/index.html")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    _stop_pocket_tts_server()
 
 
 @app.get("/api/providers")

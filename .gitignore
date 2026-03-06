@@ -37,6 +37,11 @@ uploads/
 
 # Audio files
 *.mp3
+*.wav
+outputs/
+
+# Logs
+*.log
 
 # Environment
 .env

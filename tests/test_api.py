@@ -1,10 +1,6 @@
 """Tests for Narrate TTS API"""
 
 import pytest
-import json
-import tempfile
-import shutil
-from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -178,20 +174,22 @@ class TestTTS:
         assert "unknown provider" in response.json()["detail"].lower()
 
     def test_elevenlabs_without_api_key_returns_400(self, client):
-        response = client.post("/api/tts", json={
-            "text": "Hello world",
-            "provider": "elevenlabs",
-            "model": "eleven_flash_v2_5"
-        })
+        with patch("app.ELEVENLABS_API_KEY", ""):
+            response = client.post("/api/tts", json={
+                "text": "Hello world",
+                "provider": "elevenlabs",
+                "model": "eleven_flash_v2_5"
+            })
         assert response.status_code == 400
         assert "api key" in response.json()["detail"].lower()
 
     def test_openai_without_api_key_returns_400(self, client):
-        response = client.post("/api/tts", json={
-            "text": "Hello world",
-            "provider": "openai",
-            "model": "tts-1"
-        })
+        with patch("app.OPENAI_API_KEY", ""):
+            response = client.post("/api/tts", json={
+                "text": "Hello world",
+                "provider": "openai",
+                "model": "tts-1"
+            })
         assert response.status_code == 400
         assert "api key" in response.json()["detail"].lower()
 
@@ -572,7 +570,7 @@ class TestVoiceManagement:
         mocked_transcribe.assert_not_called()
 
     @patch("app.transcribe_audio", return_value="Retranscribed text")
-    def test_retranscribe_voice_endpoint_updates_transcript(self, client, clean_uploads):
+    def test_retranscribe_voice_endpoint_updates_transcript(self, _mock_transcribe, client, clean_uploads):
         upload_response = client.post(
             "/api/upload-voice",
             files={"file": ("test.wav", b"RIFF" + b"\x00" * 100, "audio/wav")},
